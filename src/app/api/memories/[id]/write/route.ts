@@ -1,6 +1,7 @@
+import { after } from "next/server";
 import { api, ApiError } from "@/server/api";
 import { requireApiUser } from "@/server/auth";
-import { writeMemoryToWalrus } from "@/server/services/memory";
+import { flushLessonUpdates, writeMemoryToWalrus } from "@/server/services/memory";
 import { prisma } from "@/server/db";
 
 export const POST = api(async (_req, ctx) => {
@@ -12,5 +13,7 @@ export const POST = api(async (_req, ctx) => {
     throw new ApiError(409, "UNCONFIRMED_LESSON", "Confirm or correct this lesson before writing it to Walrus");
   }
   const result = await writeMemoryToWalrus(user.id, id);
+  // Updates that were waiting for this lesson can be written now.
+  if (result.writeStatus === "confirmed") after(() => flushLessonUpdates(user.id).catch(() => undefined));
   return { result };
 });

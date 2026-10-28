@@ -22,7 +22,9 @@ context → deterministic decision → user follows → real outcome
 | Memory track record | Real. Every recorded outcome judges the lessons behind its decision (held / contradicted / inconclusive) and moves their confidence, which changes how strongly they act next time. |
 | Tatum Sui RPC | Real JSON-RPC integration (`sui-mainnet.gateway.tatum.io`) when `TATUM_API_KEY` is set: wallet balances and history, and transaction evidence (status, balance changes, gas) that fills and verifies outcomes. Without it: HTTP 503 and an explicit `not configured` state. No public-RPC substitution. |
 | Tatum Data API | Real `/v4/data/rate/symbol/batch` exchange rates (same key). Values SUI/stablecoin balances and Sui gas in dollars with the rate's source and timestamp; never added to safe-to-move. Without a key, crypto stays in its own units. |
-| Total Recall | Real `restore()` + recall rebuild the lesson ledger from Walrus on a fresh install; `listMemories()` independently counts what is stored. The namespace is derived from the sign-in email, so memory follows the person, not the device. |
+| Total Recall | Real `restore()` + recall rebuild the lesson ledger from Walrus on a fresh install — including each lesson's latest confidence, which rules were replaced, and the track record. `listMemories()` independently counts what is stored. The namespace is derived from the sign-in email, so memory follows the person, not the device. |
+| Lesson updates | Walrus blobs are immutable, so confidence changes, replaced rules and exclusions are appended to `<namespace>-updates` and replayed newest-wins on restore. |
+| Spend Watch recall | Rules are recalled from Walrus on every check; each alert shows whether its rule came from a Walrus recall or the local ledger, and the page shows recall coverage. |
 | Decision journal | Opt-in. Each answer's question, advice and reason is written to its own Walrus namespace and can be recalled ("what did you tell me last time?"). Never used as a rule. |
 | Learning curve | Weekly rules-in-force and advice outcomes on Overview and Memory, from recorded outcomes only. |
 | Walrus Memory | Real `@mysten-incubation/memwal` writes and recalls when `MEMWAL_PRIVATE_KEY` + `MEMWAL_ACCOUNT_ID` are set. A record is only `confirmed` when the relayer returns a blob ID. |
@@ -64,7 +66,7 @@ pnpm db:reset
 ```bash
 pnpm typecheck
 pnpm lint
-pnpm test          # 61 tests: money, cash flow, routes, outcomes, replay cutoff, cross-user auth, Spend Watch, track record, sourced rates, portable text
+pnpm test          # 72 tests, incl. Walrus flows end to end against the SDK's MemWalMock (write, inventory, recall coverage, updates, journal, fresh-install restore)
 pnpm build
 ```
 
@@ -92,6 +94,8 @@ Lessons are stored twice, deliberately:
 - **Portable self-describing text** on Walrus, including the rule JSON and scope, so a recalled blob can be understood without this app.
 
 On recall, the database rule wins; the Walrus text is a fallback. That keeps memory usable across tools while preventing a malformed blob from silently rewriting financial logic.
+
+Walrus blobs are immutable, so a lesson's later changes are **appended**, not overwritten: confidence moves, replaced rules and exclusions are written as updates to `<namespace>-updates`. A restore replays them newest-wins, so a fresh install gets back the current state *and* the track record — not a stale snapshot, and never a replaced rule as active.
 
 Memory is also **accountable**. Each outcome writes a `MemoryEvidence` verdict for every lesson that shaped the decision. Held lessons gain confidence (toward 0.95), contradicted ones lose it (toward 0.10), and confidence already weights how strongly a rule acts in the cash-flow and route engines — so a lesson that keeps working gets more say, and one that failed gets less, without anything being deleted.
 
@@ -139,7 +143,7 @@ A `Dockerfile`, `.dockerignore`, and `railway.json` are included. SQLite needs a
 | Requirement | Implementation |
 | --- | --- |
 | Genuinely recalled memory changes advice | Seeded `AMOUNT_CAP` + route preference move `$300` → `$150 now / $150 later`; every applied rule carries its memory ID |
-| ≥10 confirmed Walrus Mainnet memories | Ready via `pnpm walrus:backfill` (26 eligible records: lessons + journal); `pnpm walrus:verify` enforces the count against both the ledger and the relayer inventory. **Blocked here: credentials absent** |
+| ≥10 confirmed Walrus Mainnet memories | Ready via `pnpm walrus:backfill` (26 eligible records: lessons + journal, then their track-record updates); drafts and rejected lessons are never written. `pnpm walrus:verify` enforces the count against both the ledger and the relayer inventory. **Blocked here: credentials absent** |
 | Tatum Data APIs | `/v4/data/rate/symbol/batch` for sourced SUI/stablecoin valuations and gas in USD |
 | "Keeps scores, preferences, and reasoning across sessions" | Scores: memory track record. Preferences: typed rules (`SPEND_LIMIT`, `BUFFER_FLOOR`, …). Reasoning: decision journal. Across sessions and devices: email-derived namespace + Restore from Walrus |
 | "Sharper every week" | Weekly learning curve: rules in force and advice outcomes, plus confidence that moves with evidence |

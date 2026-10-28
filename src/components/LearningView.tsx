@@ -46,13 +46,13 @@ type DecisionRow = {
 };
 
 type Inventory = {
-  configured: boolean; namespace: string; journalNamespace: string; lessonBlobs: number; journalBlobs: number;
+  configured: boolean; namespace: string; journalNamespace: string; updatesNamespace: string; lessonBlobs: number; journalBlobs: number; updateBlobs: number;
   matched: number; onlyOnWalrus: number; onlyLocal: number; truncated: boolean; error: string | null;
 };
 
 type RestoreReport = {
   status: string; relayer: { restored: number; skipped: number; failed: number; total: number } | null;
-  recalled: number; created: number; relinked: number; alreadyLocal: number; error: string | null;
+  recalled: number; created: number; relinked: number; alreadyLocal: number; updatesApplied: number; evidenceRestored: number; error: string | null;
 };
 
 type Verification = {
@@ -174,7 +174,7 @@ export function LearningView({ metrics, memories, decisions, verification, commu
       const result = await post<{ report: RestoreReport; inventory: Inventory }>("/api/memories/restore");
       const r = result.report;
       if (r.status === "restored") {
-        setNotice(`Recalled ${r.recalled} lessons from Walrus: ${r.created} rebuilt, ${r.relinked} re-linked, ${r.alreadyLocal} already here.${r.relayer ? ` Relayer re-indexed ${r.relayer.restored} of ${r.relayer.total} blobs.` : ""}`);
+        setNotice(`Recalled ${r.recalled} lessons from Walrus: ${r.created} rebuilt, ${r.relinked} re-linked, ${r.alreadyLocal} already here. Replayed the latest state of ${r.updatesApplied} lesson(s) and ${r.evidenceRestored} track-record verdict(s).${r.relayer ? ` Relayer re-indexed ${r.relayer.restored} of ${r.relayer.total} blobs.` : ""}`);
       } else {
         setError(r.error ?? "Restore did not run.");
       }
@@ -511,7 +511,7 @@ export function LearningView({ metrics, memories, decisions, verification, commu
             <div className="grid gap-px border-t border-white/[0.06] bg-white/[0.06] sm:grid-cols-4">
               {[
                 { label: "Lessons on Walrus", value: verification.inventory.configured ? String(verification.inventory.lessonBlobs) : "—", tone: "text-lime" },
-                { label: "Journal entries on Walrus", value: verification.inventory.configured ? String(verification.inventory.journalBlobs) : "—" },
+                { label: "Journal · updates on Walrus", value: verification.inventory.configured ? `${verification.inventory.journalBlobs} · ${verification.inventory.updateBlobs}` : "—" },
                 { label: "Matched to this ledger", value: verification.inventory.configured ? String(verification.inventory.matched) : "—" },
                 { label: "Recoverable here", value: verification.inventory.configured ? String(verification.inventory.onlyOnWalrus) : "—", tone: verification.inventory.onlyOnWalrus > 0 ? "text-amber" : "" },
               ].map((item) => (
@@ -524,6 +524,7 @@ export function LearningView({ metrics, memories, decisions, verification, commu
             <div className="grid gap-4 border-t border-white/[0.06] px-5 py-4 sm:grid-cols-2">
               <p className="text-[10.5px] leading-relaxed text-muted">
                 Counts come from the relayer&apos;s own inventory (<span className="font-mono">listMemories</span>), not from LANDED&apos;s database — an independent check that “confirmed” means stored.
+                Walrus blobs are immutable, so confidence changes and replaced lessons are appended as updates; a restore replays them newest-first and rebuilds the track record.
                 {verification.inventory.onlyLocal > 0 ? ` ${verification.inventory.onlyLocal} locally confirmed record(s) are not listed by the relayer yet.` : ""}
                 {verification.inventory.error ? ` ${verification.inventory.error}` : ""}
               </p>

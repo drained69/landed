@@ -32,6 +32,7 @@ export interface MemoryRef {
   blobId: string | null;
   createdAt: string;
   summary: string;
+  recalledFrom: "walrus" | "local";
 }
 
 export interface RecurringCharge {
@@ -120,7 +121,7 @@ function median(values: number[]): number {
 }
 
 function memoryRef(memory: ValidatedMemory): MemoryRef {
-  return { memoryId: memory.id, blobId: memory.blobId, createdAt: memory.createdAt, summary: memory.summary };
+  return { memoryId: memory.id, blobId: memory.blobId, createdAt: memory.createdAt, summary: memory.summary, recalledFrom: memory.recalledFrom ?? "local" };
 }
 
 function utcMonthStart(date: Date, offset = 0): Date {

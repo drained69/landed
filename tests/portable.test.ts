@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { formatJournalText, formatMemoryText, parseJournalText, parsePortableLesson, parseRuleFromMemoryText } from "@/server/engine/outcomes";
+import {
+  formatJournalText, formatLessonUpdate, formatMemoryText, latestLessonState, parseJournalText, parseLessonUpdate,
+  parsePortableLesson, parseRuleFromMemoryText,
+} from "@/server/engine/outcomes";
 
 describe("portable Walrus lesson text", () => {
   const rule = { kind: "SPEND_LIMIT", category: "dining", monthlyLimitMinor: 12000, currency: "USD" };
@@ -26,6 +29,8 @@ describe("portable Walrus lesson text", () => {
       lesson: "The user set a monthly dining limit. Warn before a purchase would exceed it.",
       rule,
       conditions: { source: "spend_watch" },
+      status: "active",
+      supersededBy: null,
     });
     expect(parseRuleFromMemoryText(text)).toEqual(rule);
   });
@@ -62,5 +67,41 @@ describe("decision journal text", () => {
     });
     expect(journal).toContain("memories: none");
     expect(parseRuleFromMemoryText(journal)).toBeNull();
+  });
+});
+
+describe("lesson update text", () => {
+  const base = {
+    memoryId: "m1", updateId: "u1", createdAt: "2026-10-20T10:00:00.000Z", kind: "confidence" as const,
+    confidence: 0.775, confidenceBefore: 0.7, supersededBy: null, excluded: false,
+    verdict: "held", decisionId: "d1", reason: "The approved price held.",
+  };
+
+  it("round-trips and is never mistaken for a lesson or a rule", () => {
+    const text = formatLessonUpdate(base);
+    expect(parseLessonUpdate(text)).toEqual(base);
+    expect(parsePortableLesson(text)).toBeNull();
+    expect(parseRuleFromMemoryText(text)).toBeNull();
+  });
+
+  it("folds updates newest-wins regardless of recall order", () => {
+    const later = { ...base, updateId: "u2", createdAt: "2026-10-25T10:00:00.000Z", kind: "superseded" as const, supersededBy: "m2", confidence: 0.6 };
+    expect(latestLessonState([later, base])).toEqual({ confidence: 0.6, supersededBy: "m2", excluded: false, at: later.createdAt });
+    expect(latestLessonState([])).toBeNull();
+  });
+
+  it("rejects malformed updates", () => {
+    expect(parseLessonUpdate(formatLessonUpdate(base).replace("kind=confidence", "kind=delete"))).toBeNull();
+    expect(parseLessonUpdate(formatLessonUpdate(base).replace(/created=.*/, "created=yesterday"))).toBeNull();
+  });
+});
+
+describe("lesson status in portable text", () => {
+  it("carries supersession so a restore never revives a replaced rule", () => {
+    const text = formatMemoryText({
+      memoryId: "m1", category: "preference", summary: "s", lesson: "l", rule: null, confidence: 0.5,
+      conditions: null, decisionId: "none", createdAt: "2026-10-01T00:00:00.000Z", status: "superseded", supersededBy: "m2",
+    });
+    expect(parsePortableLesson(text)).toMatchObject({ status: "superseded", supersededBy: "m2" });
   });
 });

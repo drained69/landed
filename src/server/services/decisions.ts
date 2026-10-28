@@ -9,7 +9,9 @@ import {
 } from "@/server/engine/outcomes";
 import { assessMemory } from "@/server/engine/evidence";
 import { buildDecisionInput, memoryQueryForSnapshot } from "./financial";
-import { journalNamespace, recallApplicableMemories, userNamespace, writeMemoryToWalrus } from "./memory";
+import {
+  journalNamespace, recallApplicableMemories, recordLessonUpdate, userNamespace, writeMemoryToWalrus,
+} from "./memory";
 import { formatMemoryText as portableText } from "@/server/engine/outcomes";
 
 export interface GenerateDecisionParams {
@@ -470,6 +472,16 @@ async function recordMemoryEvidence(
         data: { confidence: assessment.confidenceAfter },
       }),
     ]);
+    // Walrus blobs are immutable: a confidence change is appended as an update.
+    if (assessment.verdict !== "inconclusive") {
+      await recordLessonUpdate(userId, memory.id, {
+        kind: "confidence",
+        verdict: assessment.verdict,
+        decisionId,
+        confidenceBefore: assessment.confidenceBefore,
+        reason: assessment.reason,
+      });
+    }
     results.push(row);
   }
   if (results.length > 0) {

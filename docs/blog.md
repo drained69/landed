@@ -110,6 +110,10 @@ When a move settles on Sui, the user can paste the digest. LANDED reads it throu
 
 The first version derived each user's Walrus namespace from a database row id. That quietly broke the point of portable memory: reinstall the app, get a new id, lose your past. The namespace now comes from the sign-in (normalized, hashed), so a fresh install recalls the same memories. **Restore from Walrus** asks the relayer to re-index its blobs, recalls LANDED's own self-describing lesson texts, and rebuilds the ledger; because the typed rule travels inside the text, a recovered lesson changes advice immediately. A separate count from the relayer's own inventory (`listMemories`) checks that "confirmed" really means stored.
 
+## Immutable memory, changing minds
+
+Walrus blobs cannot be edited, but a lesson's standing changes: it gains or loses confidence, or a newer rule replaces it. Overwriting is impossible and pretending would be wrong, so LANDED appends. Each change is written as a small update memory, and a restore replays them newest-wins. The first version only changed the database; a restore would have brought back stale confidence and revived replaced rules as active. Now the track record itself lives on Walrus. Spend Watch also stopped reading rules straight from the database: it recalls them from Walrus on every check and labels each alert with where its rule actually came from.
+
 ## Scores, preferences, and reasoning
 
 The hackathon brief says memory should keep scores, preferences, and reasoning. LANDED maps them literally. Preferences are the typed rules you approve. Scores are each lesson's track record. Reasoning is an opt-in decision journal: every answer's question, advice and reason, written to its own namespace so it can be recalled ("what did you tell me last time?") but can never act as a rule.
@@ -138,7 +142,8 @@ The test suite covers the parts that are easy to hand-wave:
 - cross-user denial for decisions, replay, outcomes, memories, and exclusions using a throwaway database
 - recurring-charge detection (including not mistaking groceries for a subscription), memory-only alerts, newest-rule-wins, purchase checks against a learned limit
 - track-record verdicts for cash and route rules, bounded confidence updates, and the needs-review threshold
-- BigInt rate conversion and rounding; portable lesson and journal text round trips, including corrupted rules
+- BigInt rate conversion and rounding; portable lesson, update and journal text round trips, including corrupted rules
+- Walrus end to end against the SDK's own `MemWalMock`: confirmed writes and relayer inventory, drafts never written, Spend Watch recall coverage, update flushing, journal recall, and a fresh-install restore that rebuilds lessons, their latest state and the track record — verified to fail if update replay is disabled
 
 The authorization test is an integration test on purpose. Cross-user isolation is a property of the `where` clauses; mocking Prisma away would test nothing.
 

@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { z } from "zod";
 import { api, ApiError, parseBody } from "@/server/api";
 import { requireApiUser } from "@/server/auth";
@@ -5,6 +6,7 @@ import { parseAmountToMinor } from "@/lib/money";
 import { recordOutcome } from "@/server/services/decisions";
 import { prisma } from "@/server/db";
 import { getTransactionEvidence } from "@/server/services/tatum";
+import { flushLessonUpdates } from "@/server/services/memory";
 
 const schema = z.object({
   amountSent: z.union([z.string(), z.number()]).optional(),
@@ -64,5 +66,7 @@ export const POST = api(async (req, ctx) => {
     transactionDigest: digest,
     evidenceType,
   });
+  // Track-record verdicts become append-only Walrus updates; never block the response.
+  after(() => flushLessonUpdates(user.id).catch(() => undefined));
   return result;
 });

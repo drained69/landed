@@ -3,21 +3,27 @@ import { prisma } from "@/server/db";
 import { formatMinor } from "@/lib/money";
 import type { MemoryRule } from "@/lib/types";
 import { computeSpendWatch, type SpendProposal, type SpendWatchResult } from "@/server/engine/spending";
-import { listActiveRuleMemories, supersedeMemory, userNamespace, writeMemoryToWalrus } from "./memory";
+import { recallRuleMemories, supersedeMemory, userNamespace, writeMemoryToWalrus, type RuleRecall } from "./memory";
 
 const SPEND_RULES: MemoryRule["kind"][] = ["SPEND_LIMIT", "SUBSCRIPTION_WATCH"];
+const SPEND_QUERY = "LANDED lesson spending limit per month category approved subscription price merchant charge";
 
-export async function getSpendWatch(userId: string, options: { withMemory?: boolean; asOf?: Date } = {}): Promise<SpendWatchResult> {
+export type SpendWatch = SpendWatchResult & { recall: Omit<RuleRecall, "memories"> };
+
+export async function getSpendWatch(userId: string, options: { withMemory?: boolean; asOf?: Date } = {}): Promise<SpendWatch> {
   const asOf = options.asOf ?? new Date();
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
-  const [transactions, memories] = await Promise.all([
+  const [transactions, recall] = await Promise.all([
     prisma.transaction.findMany({
       where: { userId, direction: "out", timestamp: { gte: subMonths(asOf, 5), lte: asOf } },
       orderBy: { timestamp: "asc" },
     }),
-    options.withMemory === false ? Promise.resolve([]) : listActiveRuleMemories(userId, SPEND_RULES, asOf),
+    options.withMemory === false
+      ? Promise.resolve<RuleRecall>({ memories: [], mode: "local_rehearsal", total: 0, recalled: 0, error: null })
+      : recallRuleMemories(userId, SPEND_RULES, SPEND_QUERY, asOf),
   ]);
-  return computeSpendWatch({
+  const { memories, ...recallInfo } = recall;
+  const result = computeSpendWatch({
     asOf,
     currency: user.preferredCurrency,
     transactions: transactions.map((t) => ({
@@ -32,6 +38,7 @@ export async function getSpendWatch(userId: string, options: { withMemory?: bool
     })),
     memories,
   });
+  return { ...result, recall: recallInfo };
 }
 
 /**

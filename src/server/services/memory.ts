@@ -3,7 +3,8 @@ import { MemWal } from "@mysten-incubation/memwal";
 import { prisma, parseJson } from "@/server/db";
 import type { MemoryRule, ValidatedMemory } from "@/lib/types";
 import {
-  formatMemoryText, parseJournalText, parsePortableLesson, parseRuleFromMemoryText,
+  formatLessonUpdate, formatMemoryText, latestLessonState, parseJournalText, parseLessonUpdate,
+  parsePortableLesson, parseRuleFromMemoryText, type LessonUpdate,
 } from "@/server/engine/outcomes";
 
 export interface MemoryConfigStatus {
@@ -99,6 +100,11 @@ export function journalNamespace(accountEmail: string): string {
   return `${userNamespace(accountEmail)}-journal`;
 }
 
+/** Append-only lesson state changes (confidence, superseded, excluded). */
+export function updatesNamespace(accountEmail: string): string {
+  return `${userNamespace(accountEmail)}-updates`;
+}
+
 export async function namespaceForUser(userId: string): Promise<string> {
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { email: true } });
   return userNamespace(user.email);
@@ -177,6 +183,11 @@ export async function writeMemoryToWalrus(userId: string, memoryId: string): Pro
     };
   }
 
+  if (record.verificationStatus !== "user_confirmed" && record.verificationStatus !== "verified") {
+    // Drafts and rejected lessons never leave the local ledger.
+    return { memoryId, writeStatus: record.writeStatus, blobId: null, jobId: null, error: "Only confirmed lessons are written to Walrus.", confirmedAt: null };
+  }
+
   const config = memoryConfig();
   if (!config.configured) {
     const message = `Walrus Memory not configured: ${config.missing.join(", ")} missing. The lesson stays in the local rehearsal store and is not claimed as a Mainnet write.`;
@@ -209,6 +220,8 @@ export async function writeMemoryToWalrus(userId: string, memoryId: string): Pro
         conditions: parseJson(record.conditions, null),
         decisionId: record.decisionId ?? "none",
         createdAt: record.createdAt.toISOString(),
+        status: record.supersededBy ? "superseded" : record.excluded ? "excluded" : "active",
+        supersededBy: record.supersededBy,
       });
 
   try {
@@ -482,19 +495,24 @@ export async function verifyMemoryLedger(userId: string) {
 export async function excludeMemory(userId: string, memoryId: string, excluded: boolean, reason?: string) {
   const record = await prisma.memoryRecord.findFirst({ where: { id: memoryId, userId } });
   if (!record) throw new Error("Memory not found");
-  return prisma.memoryRecord.update({
+  const updated = await prisma.memoryRecord.update({
     where: { id: record.id },
     data: {
       excluded,
       exclusionReason: excluded ? reason ?? "Excluded by user from future decisions" : null,
     },
   });
+  await recordLessonUpdate(userId, record.id, {
+    kind: excluded ? "excluded" : "included",
+    reason: excluded ? reason ?? "Excluded by user from future decisions" : "Included in decisions again",
+  });
+  return updated;
 }
 
 export async function supersedeMemory(userId: string, oldId: string, newId: string, reason: string) {
   const old = await prisma.memoryRecord.findFirst({ where: { id: oldId, userId } });
   if (!old) throw new Error("Memory not found");
-  return prisma.memoryRecord.update({
+  const updated = await prisma.memoryRecord.update({
     where: { id: old.id },
     data: {
       supersededBy: newId,
@@ -502,6 +520,120 @@ export async function supersedeMemory(userId: string, oldId: string, newId: stri
       exclusionReason: reason,
     },
   });
+  await recordLessonUpdate(userId, old.id, { kind: "superseded", supersededBy: newId, reason });
+  return updated;
+}
+
+/**
+ * Record a change to a lesson's state as an append-only update. The current
+ * row state (after the change) is captured, so replaying the newest update
+ * reproduces it exactly. Written to Walrus by flushLessonUpdates.
+ */
+export async function recordLessonUpdate(
+  userId: string,
+  memoryId: string,
+  change: {
+    kind: LessonUpdate["kind"];
+    reason: string;
+    supersededBy?: string | null;
+    verdict?: string | null;
+    decisionId?: string | null;
+    confidenceBefore?: number | null;
+  },
+) {
+  const memory = await prisma.memoryRecord.findFirst({ where: { id: memoryId, userId } });
+  if (!memory) throw new Error("Memory not found");
+  return prisma.memoryUpdate.create({
+    data: {
+      userId,
+      memoryId,
+      kind: change.kind,
+      confidence: memory.confidence,
+      confidenceBefore: change.confidenceBefore ?? null,
+      supersededBy: change.supersededBy ?? memory.supersededBy,
+      excluded: memory.excluded,
+      verdict: change.verdict ?? null,
+      decisionId: change.decisionId ?? null,
+      reason: change.reason.slice(0, 500),
+    },
+  });
+}
+
+export interface FlushReport {
+  written: number;
+  /** Updates whose lesson is not on Walrus yet; they are written once it is. */
+  waiting: number;
+  blocked: number;
+  failed: number;
+}
+
+/**
+ * Write pending lesson updates to `<namespace>-updates`, oldest first, so the
+ * lesson's track record survives a restore. Updates to a lesson that is not on
+ * Walrus yet wait for it. Safe to call from after() or a script.
+ */
+export async function flushLessonUpdates(userId: string, limit = 25): Promise<FlushReport> {
+  const report: FlushReport = { written: 0, waiting: 0, blocked: 0, failed: 0 };
+  const pending = await prisma.memoryUpdate.findMany({
+    where: { userId, writeStatus: { in: ["pending", "blocked", "failed"] } },
+    include: { memory: { select: { writeStatus: true, walrusBlobId: true } } },
+    orderBy: { createdAt: "asc" },
+  });
+  if (pending.length === 0) return report;
+
+  const config = memoryConfig();
+  const onWalrus = (u: (typeof pending)[number]) =>
+    Boolean(u.memory.walrusBlobId) && (u.memory.writeStatus === "confirmed" || u.memory.writeStatus === "superseded");
+  report.waiting = pending.filter((u) => !onWalrus(u)).length;
+  const toWrite = pending.filter(onWalrus).slice(0, limit);
+  if (toWrite.length === 0) return report;
+
+  if (!config.configured) {
+    await prisma.memoryUpdate.updateMany({
+      where: { id: { in: toWrite.map((u) => u.id) } },
+      data: { writeStatus: "blocked", writeError: `Walrus Memory not configured: ${config.missing.join(", ")} missing.` },
+    });
+    report.blocked = toWrite.length;
+    return report;
+  }
+
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { email: true } });
+  const namespace = updatesNamespace(user.email);
+  const client = getClient();
+  for (const u of toWrite) {
+    try {
+      await prisma.memoryUpdate.update({ where: { id: u.id }, data: { writeStatus: "writing", writeError: null } });
+      const result = await client.rememberAndWait(
+        formatLessonUpdate({
+          memoryId: u.memoryId,
+          updateId: u.id,
+          createdAt: u.createdAt.toISOString(),
+          kind: u.kind as LessonUpdate["kind"],
+          confidence: u.confidence,
+          confidenceBefore: u.confidenceBefore,
+          supersededBy: u.supersededBy,
+          excluded: u.excluded,
+          verdict: u.verdict,
+          decisionId: u.decisionId,
+          reason: u.reason,
+        }),
+        namespace,
+        { idempotencyKey: `landed-update-${u.id}`, timeoutMs: 120_000, pollIntervalMs: 1_500 },
+      );
+      await prisma.memoryUpdate.update({
+        where: { id: u.id },
+        data: { writeStatus: "confirmed", walrusBlobId: result.blob_id, confirmedAt: new Date() },
+      });
+      report.written += 1;
+    } catch (error) {
+      await prisma.memoryUpdate.update({
+        where: { id: u.id },
+        data: { writeStatus: "failed", writeError: error instanceof Error ? error.message : "Walrus write failed" },
+      });
+      report.failed += 1;
+    }
+  }
+  return report;
 }
 
 /**
@@ -531,14 +663,77 @@ export async function listActiveRuleMemories(
     .filter((m) => m.rule && kinds.includes(m.rule.kind));
 }
 
+export interface RuleRecall {
+  memories: ValidatedMemory[];
+  mode: "walrus" | "mixed" | "local_rehearsal";
+  /** Active rules of the requested kinds. */
+  total: number;
+  /** How many of them this request actually recalled from Walrus. */
+  recalled: number;
+  error: string | null;
+}
+
+/**
+ * Every active rule of the given kinds, each labelled by whether this request
+ * recalled it from Walrus. Walrus recall is attempted first; the database row
+ * stays authoritative for the typed rule. A rule Walrus did not return (not
+ * written yet, or missed by recall) is still applied, but labelled "local" and
+ * counted, so recall coverage is visible instead of assumed.
+ */
+export async function recallRuleMemories(
+  userId: string,
+  kinds: MemoryRule["kind"][],
+  query: string,
+  cutoff: Date = new Date(),
+): Promise<RuleRecall> {
+  const active = await listActiveRuleMemories(userId, kinds, cutoff);
+  const local = (error: string | null): RuleRecall => ({
+    memories: active.map((m) => ({ ...m, recalledFrom: "local" })),
+    mode: "local_rehearsal",
+    total: active.length,
+    recalled: 0,
+    error,
+  });
+  const config = memoryConfig();
+  if (!config.configured) return local(`Walrus Memory is not configured (${config.missing.join(", ")}). Rules come from the local ledger.`);
+  if (active.length === 0) return { memories: [], mode: "walrus", total: 0, recalled: 0, error: null };
+  try {
+    const result = await getClient().recall({
+      query,
+      namespace: await namespaceForUser(userId),
+      limit: Math.max(20, active.length * 3),
+      maxDistance: 1.5,
+      timeoutMs: 20_000,
+    });
+    const hits = new Map(result.results.map((hit) => [hit.blob_id, hit.distance]));
+    const memories = active.map((m): ValidatedMemory => (
+      m.blobId && hits.has(m.blobId)
+        ? { ...m, recalledFrom: "walrus", distance: hits.get(m.blobId) }
+        : { ...m, recalledFrom: "local" }
+    ));
+    const recalled = memories.filter((m) => m.recalledFrom === "walrus").length;
+    return {
+      memories,
+      mode: recalled === active.length ? "walrus" : recalled > 0 ? "mixed" : "local_rehearsal",
+      total: active.length,
+      recalled,
+      error: recalled < active.length ? `${active.length - recalled} rule(s) were not returned by Walrus recall and come from the local ledger.` : null,
+    };
+  } catch (error) {
+    return local(`Walrus recall failed: ${error instanceof Error ? error.message : "unknown error"}. Rules come from the local ledger.`);
+  }
+}
+
 // ── Total Recall: inventory and restore from Walrus alone ──────────────────
 
 export interface WalrusInventory {
   configured: boolean;
   namespace: string;
   journalNamespace: string;
+  updatesNamespace: string;
   lessonBlobs: number;
   journalBlobs: number;
+  updateBlobs: number;
   /** Confirmed local rows whose blob the relayer also lists. */
   matched: number;
   /** Blobs on Walrus with no local row: recoverable with restoreFromWalrus. */
@@ -558,7 +753,11 @@ export async function walrusInventory(userId: string): Promise<WalrusInventory> 
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { email: true } });
   const ns = userNamespace(user.email);
   const jns = journalNamespace(user.email);
-  const base = { namespace: ns, journalNamespace: jns, lessonBlobs: 0, journalBlobs: 0, matched: 0, onlyOnWalrus: 0, onlyLocal: 0, truncated: false };
+  const uns = updatesNamespace(user.email);
+  const base = {
+    namespace: ns, journalNamespace: jns, updatesNamespace: uns,
+    lessonBlobs: 0, journalBlobs: 0, updateBlobs: 0, matched: 0, onlyOnWalrus: 0, onlyLocal: 0, truncated: false,
+  };
   const config = memoryConfig();
   if (!config.configured) {
     return { ...base, configured: false, error: `Walrus Memory is not configured (${config.missing.join(", ")}).` };
@@ -568,6 +767,7 @@ export async function walrusInventory(userId: string): Promise<WalrusInventory> 
     const blobs = new Set<string>();
     let lessonBlobs = 0;
     let journalBlobs = 0;
+    let updateBlobs = 0;
     let cursor: string | undefined;
     let pages = 0;
     let more = true;
@@ -576,22 +776,27 @@ export async function walrusInventory(userId: string): Promise<WalrusInventory> 
       for (const m of page.memories) {
         if (m.namespace_id === ns) { lessonBlobs += 1; blobs.add(m.blob_id); }
         else if (m.namespace_id === jns) { journalBlobs += 1; blobs.add(m.blob_id); }
+        else if (m.namespace_id === uns) { updateBlobs += 1; blobs.add(m.blob_id); }
       }
       cursor = page.next_cursor ?? undefined;
       more = page.has_more;
       pages += 1;
     }
-    const confirmed = await prisma.memoryRecord.findMany({
-      where: { userId, writeStatus: { in: ["confirmed", "superseded"] }, walrusBlobId: { not: null } },
-      select: { walrusBlobId: true },
-    });
-    const local = new Set(confirmed.map((r) => r.walrusBlobId!));
+    const [confirmed, confirmedUpdates] = await Promise.all([
+      prisma.memoryRecord.findMany({
+        where: { userId, writeStatus: { in: ["confirmed", "superseded"] }, walrusBlobId: { not: null } },
+        select: { walrusBlobId: true },
+      }),
+      prisma.memoryUpdate.findMany({ where: { userId, writeStatus: "confirmed", walrusBlobId: { not: null } }, select: { walrusBlobId: true } }),
+    ]);
+    const local = new Set([...confirmed, ...confirmedUpdates].map((r) => r.walrusBlobId!));
     const matched = [...local].filter((b) => blobs.has(b)).length;
     return {
       ...base,
       configured: true,
       lessonBlobs,
       journalBlobs,
+      updateBlobs,
       matched,
       onlyOnWalrus: [...blobs].filter((b) => !local.has(b)).length,
       onlyLocal: local.size - matched,
@@ -610,6 +815,10 @@ export interface RestoreReport {
   created: number;
   relinked: number;
   alreadyLocal: number;
+  /** Lesson state changes replayed from <namespace>-updates. */
+  updatesApplied: number;
+  /** Track-record verdicts rebuilt from updates. */
+  evidenceRestored: number;
   error: string | null;
 }
 
@@ -628,7 +837,7 @@ const RESTORE_QUERIES = [
  * re-parsed from the text, so a recovered lesson changes advice again.
  */
 export async function restoreFromWalrus(userId: string): Promise<RestoreReport> {
-  const empty = { relayer: null, recalled: 0, created: 0, relinked: 0, alreadyLocal: 0 };
+  const empty = { relayer: null, recalled: 0, created: 0, relinked: 0, alreadyLocal: 0, updatesApplied: 0, evidenceRestored: 0 };
   const config = memoryConfig();
   if (!config.configured) {
     return { ...empty, status: "blocked", error: `Walrus Memory is not configured (${config.missing.join(", ")}). Nothing can be restored.` };
@@ -647,6 +856,8 @@ export async function restoreFromWalrus(userId: string): Promise<RestoreReport> 
     let created = 0;
     let relinked = 0;
     let alreadyLocal = 0;
+    // If an original id was taken, restored rows get new ids; updates still name the original.
+    const idMap = new Map<string, string>();
     for (const [blobId, hit] of hits) {
       const parsed = parsePortableLesson(hit.text);
       if (!parsed) continue;
@@ -666,7 +877,7 @@ export async function restoreFromWalrus(userId: string): Promise<RestoreReport> 
         ? await prisma.financialDecision.findFirst({ where: { id: parsed.decisionId, userId }, select: { id: true } })
         : null;
       const createdAt = parsed.createdAt ? new Date(parsed.createdAt) : hit.createdAt ? new Date(hit.createdAt) : new Date();
-      await prisma.memoryRecord.create({
+      const restored = await prisma.memoryRecord.create({
         data: {
           ...(idTaken ? {} : { id: parsed.memoryId }),
           userId,
@@ -683,15 +894,20 @@ export async function restoreFromWalrus(userId: string): Promise<RestoreReport> 
           verificationStatus: "user_confirmed",
           namespace: ns,
           walrusBlobId: blobId,
-          writeStatus: "confirmed",
+          writeStatus: parsed.status === "superseded" ? "superseded" : "confirmed",
+          supersededBy: parsed.supersededBy,
+          excluded: parsed.status === "excluded",
           source: "walrus",
           isSynthetic: user.isDemo,
           createdAt,
           confirmedAt: createdAt,
         },
       });
+      if (restored.id !== parsed.memoryId) idMap.set(parsed.memoryId, restored.id);
       created += 1;
     }
+
+    const { updatesApplied, evidenceRestored } = await replayLessonUpdates(userId, user.email, idMap);
 
     await prisma.auditEvent.create({
       data: {
@@ -699,7 +915,7 @@ export async function restoreFromWalrus(userId: string): Promise<RestoreReport> 
         type: "memory.walrus.restored",
         entity: "User",
         entityId: userId,
-        payload: JSON.stringify({ relayer, recalled: hits.size, created, relinked, alreadyLocal }),
+        payload: JSON.stringify({ relayer, recalled: hits.size, created, relinked, alreadyLocal, updatesApplied, evidenceRestored }),
       },
     });
     return {
@@ -709,11 +925,87 @@ export async function restoreFromWalrus(userId: string): Promise<RestoreReport> 
       created,
       relinked,
       alreadyLocal,
+      updatesApplied,
+      evidenceRestored,
       error: null,
     };
   } catch (error) {
     return { ...empty, status: "failed", error: error instanceof Error ? error.message : "Walrus restore failed" };
   }
+}
+
+/**
+ * Replay `<namespace>-updates` onto the local ledger: the newest update per
+ * lesson sets its confidence, supersession and exclusion, and every decisive
+ * verdict becomes a MemoryEvidence row again, so the track record survives.
+ */
+async function replayLessonUpdates(userId: string, email: string, idMap: Map<string, string>) {
+  const client = getClient();
+  const namespace = updatesNamespace(email);
+  await client.restore(namespace, 50);
+  const result = await client.recall({
+    query: "LANDED lesson update confidence superseded excluded verdict",
+    namespace,
+    limit: 200,
+    maxDistance: 2,
+    timeoutMs: 20_000,
+  });
+
+  const byLesson = new Map<string, { update: LessonUpdate; blobId: string }[]>();
+  for (const hit of result.results) {
+    const update = parseLessonUpdate(hit.text);
+    if (!update) continue;
+    const localId = idMap.get(update.memoryId) ?? update.memoryId;
+    byLesson.set(localId, [...(byLesson.get(localId) ?? []), { update, blobId: hit.blob_id }]);
+  }
+
+  let updatesApplied = 0;
+  let evidenceRestored = 0;
+  for (const [memoryId, entries] of byLesson) {
+    const memory = await prisma.memoryRecord.findFirst({ where: { id: memoryId, userId } });
+    if (!memory) continue;
+    const state = latestLessonState(entries.map((e) => e.update));
+    if (state) {
+      const supersededBy = state.supersededBy ? idMap.get(state.supersededBy) ?? state.supersededBy : null;
+      await prisma.memoryRecord.update({
+        where: { id: memory.id },
+        data: {
+          confidence: state.confidence,
+          supersededBy,
+          excluded: state.excluded,
+          writeStatus: supersededBy && memory.writeStatus === "confirmed" ? "superseded" : memory.writeStatus,
+        },
+      });
+      updatesApplied += 1;
+    }
+    for (const { update, blobId } of entries) {
+      const known = await prisma.memoryUpdate.findFirst({ where: { userId, walrusBlobId: blobId } });
+      if (!known) {
+        await prisma.memoryUpdate.create({
+          data: {
+            userId, memoryId: memory.id, kind: update.kind, confidence: update.confidence,
+            confidenceBefore: update.confidenceBefore, supersededBy: update.supersededBy, excluded: update.excluded,
+            verdict: update.verdict, decisionId: update.decisionId, reason: update.reason,
+            walrusBlobId: blobId, writeStatus: "confirmed", createdAt: new Date(update.createdAt), confirmedAt: new Date(update.createdAt),
+          },
+        });
+      }
+      if (update.kind !== "confidence" || !update.decisionId || (update.verdict !== "held" && update.verdict !== "contradicted")) continue;
+      const exists = await prisma.memoryEvidence.findUnique({
+        where: { memoryId_decisionId: { memoryId: memory.id, decisionId: update.decisionId } },
+      });
+      if (exists) continue;
+      await prisma.memoryEvidence.create({
+        data: {
+          userId, memoryId: memory.id, decisionId: update.decisionId, verdict: update.verdict, reason: update.reason,
+          confidenceBefore: update.confidenceBefore ?? update.confidence, confidenceAfter: update.confidence,
+          createdAt: new Date(update.createdAt),
+        },
+      });
+      evidenceRestored += 1;
+    }
+  }
+  return { updatesApplied, evidenceRestored };
 }
 
 // ── Decision journal: the reasoning behind each piece of advice ────────────

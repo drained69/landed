@@ -1,8 +1,9 @@
+import { after } from "next/server";
 import { z } from "zod";
 import { api, ApiError, parseBody } from "@/server/api";
 import { requireApiUser } from "@/server/auth";
 import { confirmLesson } from "@/server/services/decisions";
-import { excludeMemory } from "@/server/services/memory";
+import { excludeMemory, flushLessonUpdates } from "@/server/services/memory";
 import { prisma } from "@/server/db";
 
 const feedbackSchema = z.object({
@@ -31,6 +32,7 @@ export const PATCH = api(async (req, ctx) => {
     if (!record) throw new ApiError(404, "NOT_FOUND", "Memory not found");
   }
   const memory = await excludeMemory(user.id, id, body.excluded, body.reason);
+  after(() => flushLessonUpdates(user.id).catch(() => undefined));
   return {
     memory,
     note: body.excluded

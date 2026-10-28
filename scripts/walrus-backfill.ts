@@ -1,5 +1,5 @@
 import { prisma } from "../src/server/db";
-import { memoryConfig, memoryHealth, userNamespace, writeMemoryToWalrus } from "../src/server/services/memory";
+import { flushLessonUpdates, memoryConfig, memoryHealth, userNamespace, writeMemoryToWalrus } from "../src/server/services/memory";
 
 /**
  * Re-attempt Walrus writes for lessons that never reached Mainnet.
@@ -73,6 +73,8 @@ async function main() {
       where: {
         userId: user.id,
         writeStatus: { in: ["pending", "failed", "blocked"] },
+        // Only lessons the user confirmed (or verified journal entries). Drafts and rejected lessons never leave.
+        verificationStatus: { in: ["user_confirmed", "verified"] },
         ...(includeSynthetic ? {} : { isSynthetic: false }),
       },
       orderBy: { createdAt: "asc" },
@@ -98,6 +100,11 @@ async function main() {
         failed += 1;
         console.log(`  ${result.writeStatus.padEnd(12)} ${label} — ${result.error ?? "no error detail"}`);
       }
+    }
+    if (!dryRun) {
+      // Track-record and supersession updates for lessons that are now on Walrus.
+      const flush = await flushLessonUpdates(user.id, 200);
+      console.log(`  updates      ${flush.written} written · ${flush.waiting} waiting for their lesson · ${flush.blocked} blocked · ${flush.failed} failed`);
     }
   }
 

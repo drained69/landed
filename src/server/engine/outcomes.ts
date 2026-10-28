@@ -266,6 +266,8 @@ export function formatMemoryText(params: {
   conditions: unknown;
   decisionId: string;
   createdAt: string;
+  status?: "active" | "superseded" | "excluded";
+  supersededBy?: string | null;
 }): string {
   return [
     `LANDED lesson [${params.memoryId}]`,
@@ -273,6 +275,8 @@ export function formatMemoryText(params: {
     `created=${params.createdAt}`,
     `decision=${params.decisionId}`,
     `confidence=${params.confidence.toFixed(2)}`,
+    `status=${params.status ?? "active"}`,
+    `superseded_by=${params.supersededBy ?? "none"}`,
     `summary: ${oneLine(params.summary)}`,
     `lesson: ${oneLine(params.lesson)}`,
     `rule: ${JSON.stringify(params.rule)}`,
@@ -296,6 +300,8 @@ export interface PortableLesson {
   lesson: string;
   rule: unknown | null;
   conditions: unknown | null;
+  status: "active" | "superseded" | "excluded";
+  supersededBy: string | null;
 }
 
 /**
@@ -317,7 +323,11 @@ export function parsePortableLesson(text: string): PortableLesson | null {
   const confidence = Number(field("confidence", "="));
   const created = field("created", "=");
   const decision = field("decision", "=");
+  const status = field("status", "=");
+  const supersededBy = field("superseded_by", "=");
   return {
+    status: status === "superseded" || status === "excluded" ? status : "active",
+    supersededBy: supersededBy && supersededBy !== "none" ? supersededBy : null,
     memoryId: id,
     category: field("category", "=") ?? "outcome",
     createdAt: created && !Number.isNaN(Date.parse(created)) ? new Date(created).toISOString() : null,
@@ -328,6 +338,70 @@ export function parsePortableLesson(text: string): PortableLesson | null {
     rule: json(field("rule", ":")),
     conditions: json(field("conditions", ":")),
   };
+}
+
+export interface LessonUpdate {
+  memoryId: string;
+  updateId: string;
+  createdAt: string;
+  kind: "confidence" | "superseded" | "excluded" | "included";
+  confidence: number;
+  confidenceBefore: number | null;
+  supersededBy: string | null;
+  excluded: boolean;
+  verdict: string | null;
+  decisionId: string | null;
+  reason: string;
+}
+
+/** A change to a lesson's state. Walrus blobs are immutable, so changes are appended, newest wins. */
+export function formatLessonUpdate(u: LessonUpdate): string {
+  return [
+    `LANDED lesson update [${u.memoryId}]`,
+    `update=${u.updateId}`,
+    `created=${u.createdAt}`,
+    `kind=${u.kind}`,
+    `confidence=${u.confidence.toFixed(3)}`,
+    `confidence_before=${u.confidenceBefore === null ? "none" : u.confidenceBefore.toFixed(3)}`,
+    `superseded_by=${u.supersededBy ?? "none"}`,
+    `excluded=${u.excluded}`,
+    `verdict=${u.verdict ?? "none"}`,
+    `decision=${u.decisionId ?? "none"}`,
+    `reason: ${oneLine(u.reason)}`,
+    "scope: a change to the referenced lesson's state. Apply the newest update per lesson.",
+  ].join("\n");
+}
+
+export function parseLessonUpdate(text: string): LessonUpdate | null {
+  const memoryId = text.match(/^LANDED lesson update \[([^\]\n]+)\]/m)?.[1];
+  if (!memoryId) return null;
+  const line = (name: string) => text.match(new RegExp(`^${name}[:=]\\s?(.*)$`, "m"))?.[1]?.trim() ?? null;
+  const none = (v: string | null) => (v && v !== "none" ? v : null);
+  const kind = line("kind");
+  const created = line("created");
+  const confidence = Number(line("confidence"));
+  const before = none(line("confidence_before"));
+  if (!created || Number.isNaN(Date.parse(created)) || !Number.isFinite(confidence)) return null;
+  if (kind !== "confidence" && kind !== "superseded" && kind !== "excluded" && kind !== "included") return null;
+  return {
+    memoryId,
+    updateId: line("update") ?? "",
+    createdAt: new Date(created).toISOString(),
+    kind,
+    confidence: Math.max(0, Math.min(1, confidence)),
+    confidenceBefore: before !== null && Number.isFinite(Number(before)) ? Number(before) : null,
+    supersededBy: none(line("superseded_by")),
+    excluded: line("excluded") === "true",
+    verdict: none(line("verdict")),
+    decisionId: none(line("decision")),
+    reason: line("reason") ?? "",
+  };
+}
+
+/** Fold a lesson's updates into its current state: newest update wins. */
+export function latestLessonState(updates: LessonUpdate[]) {
+  const latest = [...updates].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.updateId.localeCompare(b.updateId)).at(-1);
+  return latest ? { confidence: latest.confidence, supersededBy: latest.supersededBy, excluded: latest.excluded, at: latest.createdAt } : null;
 }
 
 /** A decision journal entry: what LANDED advised, against what, and why. Never a rule. */

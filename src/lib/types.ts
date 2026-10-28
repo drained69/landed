@@ -157,6 +157,8 @@ export interface ValidatedMemory {
   distance?: number;
   excluded?: boolean;
   supersededBy?: string | null;
+  /** Where this rule came from on this request: a live Walrus recall hit, or the local ledger. */
+  recalledFrom?: "walrus" | "local";
 }
 
 export interface MemoryEffect {

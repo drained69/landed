@@ -39,6 +39,7 @@ model User {
   consents              Consent[]
   routeObservations     RouteObservation[]
   memoryEvidence        MemoryEvidence[]
+  memoryUpdates         MemoryUpdate[]
   importBatches         ImportBatch[]
   auditEvents           AuditEvent[]
 
@@ -313,6 +314,7 @@ model MemoryRecord {
   confirmedAt         DateTime?
 
   evidence            MemoryEvidence[]
+  updates             MemoryUpdate[]
 
   @@index([userId, createdAt])
   @@index([userId, category])
@@ -338,6 +340,34 @@ model MemoryEvidence {
   @@unique([memoryId, decisionId])
   @@index([userId, createdAt])
   @@index([memoryId])
+}
+
+// Append-only changes to a lesson's state (confidence, superseded, excluded).
+// Walrus blobs are immutable, so state changes are written as new memories in
+// <namespace>-updates and replayed newest-wins on restore.
+model MemoryUpdate {
+  id               String       @id @default(cuid())
+  userId           String
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  memoryId         String
+  memory           MemoryRecord @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+  kind             String // confidence | superseded | excluded | included
+  confidence       Float
+  confidenceBefore Float?
+  supersededBy     String?
+  excluded         Boolean      @default(false)
+  verdict          String?
+  decisionId       String?
+  reason           String
+  walrusBlobId     String?
+  writeStatus      String       @default("pending") // pending | writing | confirmed | failed | blocked
+  writeError       String?
+  createdAt        DateTime     @default(now())
+  confirmedAt      DateTime?
+
+  @@index([userId, writeStatus])
+  @@index([memoryId, createdAt])
+  @@index([walrusBlobId])
 }
 
 model RouteObservation {

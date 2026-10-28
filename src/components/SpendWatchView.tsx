@@ -6,7 +6,8 @@ import { BellRing, Brain, Check, Pencil, Repeat, Sparkles, X } from "lucide-reac
 import { formatMinor, parseAmountToMinor } from "@/lib/money";
 import { cn, errorMessage, minorToMajorString, post } from "@/lib/client";
 import { Badge, Button, Card, CardHeader, EmptyState, ErrorNote, inputClass, Progress, SuccessNote } from "@/components/ui";
-import type { SpendWatchResult, MemoryRef } from "@/server/engine/spending";
+import type { MemoryRef } from "@/server/engine/spending";
+import type { SpendWatch } from "@/server/services/spending";
 
 type RememberResult = {
   memory: { id: string };
@@ -37,13 +38,18 @@ function shortDate(value: string) {
 }
 
 function MemoryChip({ memory }: { memory: MemoryRef }) {
+  const fromWalrus = memory.recalledFrom === "walrus";
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-md border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 font-mono text-[9.5px] text-muted"
-      title={memory.summary}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 font-mono text-[9.5px]",
+        fromWalrus ? "border-lime/25 bg-lime/[0.06] text-lime/90" : "border-white/[0.08] bg-white/[0.03] text-muted",
+      )}
+      title={`${memory.summary}${fromWalrus ? " — recalled from Walrus on this request" : " — from the local ledger"}`}
     >
-      <Brain className="h-3 w-3 text-lime/80" />
-      {memory.blobId ? `blob ${memory.blobId.slice(0, 10)}…` : `memory ${memory.memoryId.slice(-8)} · local`}
+      <Brain className={cn("h-3 w-3", fromWalrus ? "text-lime" : "text-lime/70")} />
+      {fromWalrus ? "recalled from Walrus" : "local ledger"}
+      {memory.blobId ? <span className="text-muted/70">· blob {memory.blobId.slice(0, 8)}…</span> : null}
       <span className="text-muted/60">· {shortDate(memory.createdAt)}</span>
     </span>
   );
@@ -110,7 +116,7 @@ function RememberControl({
   );
 }
 
-export function SpendWatchView({ watch, baselineAlerts, isDemo }: { watch: SpendWatchResult; baselineAlerts: number; isDemo: boolean }) {
+export function SpendWatchView({ watch, baselineAlerts, isDemo }: { watch: SpendWatch; baselineAlerts: number; isDemo: boolean }) {
   const router = useRouter();
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
   const c = watch.currency;
@@ -166,6 +172,11 @@ export function SpendWatchView({ watch, baselineAlerts, isDemo }: { watch: Spend
           <p className="text-[10.5px] uppercase tracking-[0.13em] text-muted">Rules in force</p>
           <p className="mt-3 text-[22px] leading-none tabular-nums sm:text-[26px] text-cream">{watch.memoriesApplied}</p>
           <p className="mt-2 text-[11px] text-muted">{limited.length} limit{limited.length === 1 ? "" : "s"} · {watched.length} approved price{watched.length === 1 ? "" : "s"}</p>
+          <p className={cn("mt-1 text-[10.5px]", watch.recall.mode === "walrus" ? "text-lime" : "text-muted/80")}>
+            {watch.recall.mode === "local_rehearsal" && watch.recall.recalled === 0
+              ? "From the local ledger · Walrus recall not available"
+              : `${watch.recall.recalled} of ${watch.recall.total} recalled from Walrus`}
+          </p>
         </Card>
       </div>
 

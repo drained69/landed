@@ -14,7 +14,7 @@ import { hashPassword } from "../src/server/auth";
 import { buildDecisionInput } from "../src/server/services/financial";
 import { decide, ENGINE_VERSION } from "../src/server/engine/decision";
 import { createJournalEntry, generateDecision, recordOutcome } from "../src/server/services/decisions";
-import { listActiveRuleMemories, writeMemoryToWalrus } from "../src/server/services/memory";
+import { flushLessonUpdates, listActiveRuleMemories, writeMemoryToWalrus } from "../src/server/services/memory";
 
 const DEMO_EMAIL = "demo@landed.app";
 const DEMO_PASSWORD = "landed-demo-2026";
@@ -779,6 +779,7 @@ async function main() {
     for (const memory of confirmed) {
       await writeMemoryToWalrus(user.id, memory.id);
     }
+    await flushLessonUpdates(user.id, 200);
   }
 
   const counts = {

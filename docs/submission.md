@@ -26,8 +26,8 @@ Track: **Consumer Finance Apps** (Tatum × Walrus Total Recall, submissions clos
 
 | Weight | Criterion | Strongest evidence |
 | --- | --- | --- |
-| 30% | Walrus and Tatum integration | Memory changes advice ($300 → $150 now / $150 later; Spend Watch alerts exist only because of memory); Restore from Walrus; relayer inventory check; Tatum RPC settlement verification re-checked server-side; Tatum Data API rates |
-| 30% | Technical quality | Integer money end to end (BigInt rate conversion); 61 tests; deterministic engines; per-user authorization tested against a real database; no fabricated confirmations |
+| 30% | Walrus and Tatum integration | Append-only lesson updates on Walrus with newest-wins restore; Spend Watch rules recalled from Walrus with visible coverage; memory changes advice ($300 → $150 now / $150 later; Spend Watch alerts exist only because of memory); Restore from Walrus; relayer inventory check; Tatum RPC settlement verification re-checked server-side; Tatum Data API rates |
+| 30% | Technical quality | Integer money end to end (BigInt rate conversion); 72 tests including Walrus flows against the SDK's MemWalMock; deterministic engines; per-user authorization tested against a real database; no fabricated confirmations |
 | 20% | Creativity | Memory that keeps a track record and loses confidence when wrong; alerts only from rules you chose; a journal you can ask about |
 | 20% | Presentation | [Demo script](demo-script.md), [blog](blog.md), README requirement map, honest status labels in the UI |
 
