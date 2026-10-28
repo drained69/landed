@@ -1,13 +1,8 @@
 import { prisma } from "@/server/db";
+import { IntegrationUnavailableError } from "@/server/errors";
+import { convertToMinor, getRates, type SourcedRate } from "./rates";
 
-export class IntegrationUnavailableError extends Error {
-  status = 503;
-  code: string;
-  constructor(code: string, message: string) {
-    super(message);
-    this.code = code;
-  }
-}
+export { IntegrationUnavailableError };
 
 const KNOWN_COINS: Record<string, { symbol: string; decimals: number; name: string }> = {
   "0x2::sui::SUI": { symbol: "SUI", decimals: 9, name: "Sui" },
@@ -351,6 +346,9 @@ export interface TransactionEvidence {
   /** Network gas actually burned, in SUI. Never converted to fiat without a sourced rate. */
   gasFeeSui: string;
   gasFeeMist: string;
+  /** Gas in USD cents, only when Tatum's Data API returned a SUI/USD rate. */
+  gasFeeUsdMinor: number | null;
+  rate: SourcedRate | null;
   balanceChanges: {
     owner: string | null;
     coinType: string;
@@ -377,7 +375,15 @@ export async function getTransactionEvidence(digest: string): Promise<Transactio
     ? BigInt(gas.computationCost) + BigInt(gas.storageCost) - BigInt(gas.storageRebate)
     : 0n;
   const status = tx.effects?.status?.status === "success" ? "success" : tx.effects?.status?.status === "failure" ? "failure" : "pending";
+  let rate: SourcedRate | null = null;
+  try {
+    rate = (await getRates(["SUI"], "USD")).get("SUI") ?? null;
+  } catch {
+    rate = null; // Shown in SUI only; no invented conversion.
+  }
   return {
+    gasFeeUsdMinor: rate ? convertToMinor(gasMist, 9, rate) : null,
+    rate,
     digest: tx.digest,
     status,
     error: tx.effects?.status?.error ?? null,
@@ -398,7 +404,7 @@ export async function getTransactionEvidence(digest: string): Promise<Transactio
       };
     }),
     explorerUrl: explorerUrl(tx.digest),
-    note: "Read from Tatum's Sui RPC. Onchain settlement does not prove a recipient-side fiat payout, and SUI gas is not converted to fiat.",
+    note: "Read from Tatum's Sui RPC. Onchain settlement does not prove a recipient-side fiat payout. Gas is converted to USD only with a Tatum Data API rate.",
   };
 }
 

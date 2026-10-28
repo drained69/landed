@@ -10,6 +10,7 @@ import {
 import { formatMinor } from "@/lib/money";
 import { errorMessage, patch, post } from "@/lib/client";
 import { Badge, Button, Card, CardHeader, ErrorNote, inputClass, Progress, Toggle } from "@/components/ui";
+import { LearningCurveChart, type LearningWeekPoint } from "@/components/LearningCurveChart";
 
 type Memory = {
   id: string; category: string; summary: string; lesson: string; confidence: number;
@@ -44,10 +45,21 @@ type DecisionRow = {
   memories: { id: string; summary: string; writeStatus: string; walrusBlobId: string | null }[];
 };
 
+type Inventory = {
+  configured: boolean; namespace: string; journalNamespace: string; lessonBlobs: number; journalBlobs: number;
+  matched: number; onlyOnWalrus: number; onlyLocal: number; truncated: boolean; error: string | null;
+};
+
+type RestoreReport = {
+  status: string; relayer: { restored: number; skipped: number; failed: number; total: number } | null;
+  recalled: number; created: number; relinked: number; alreadyLocal: number; error: string | null;
+};
+
 type Verification = {
   health: { configured: boolean; reachable: boolean; status: string; serverUrl: string; error: string | null; version: string | null; writeReady: boolean | null };
+  inventory: Inventory;
   namespace: string;
-  counts: { total: number; confirmed: number; blocked: number; failed: number; pending: number; localRehearsal: number };
+  counts: { total: number; confirmed: number; blocked: number; failed: number; pending: number; localRehearsal: number; journal: number };
   note: string;
   records: { id: string; category: string; summary: string; writeStatus: string; blobId: string | null; jobId: string | null; decisionId: string | null; createdAt: string | Date; confirmedAt: string | Date | null; error: string | null; source: string; isSynthetic: boolean; confidence: number; verificationStatus: string }[];
 };
@@ -65,15 +77,23 @@ const writeTone: Record<string, "lime" | "amber" | "red" | "sky" | "muted"> = {
   user_confirmed: "sky", hypothesis: "amber", rejected: "red", verified: "lime",
 };
 
-const categories = ["all", "financial_pattern", "preference", "outcome", "correction", "route_intelligence"];
+const categories = ["all", "financial_pattern", "preference", "outcome", "correction", "route_intelligence", "reasoning"];
 
 function shortDate(value: string | Date | null) {
   if (!value) return "—";
   return new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-export function LearningView({ metrics, memories, decisions, verification, community, consents }: {
-  metrics: Metrics; memories: Memory[]; decisions: DecisionRow[]; verification: Verification; community: Community; consents: Consent[];
+type Curve = {
+  weeks: LearningWeekPoint[];
+  summary: {
+    outcomes: number; achieved: number; lessonsLearned: number; rulesInForce: number; rulesAtStart: number; note: string;
+    sinceMiss: { weekLabel: string; lessonsLearned: number; outcomes: number; achieved: number } | null;
+  };
+};
+
+export function LearningView({ metrics, memories, decisions, verification, community, consents, curve }: {
+  metrics: Metrics; memories: Memory[]; decisions: DecisionRow[]; verification: Verification; community: Community; consents: Consent[]; curve: Curve;
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<"ledger" | "track" | "autopsies" | "verification" | "community">("ledger");
@@ -148,6 +168,20 @@ export function LearningView({ metrics, memories, decisions, verification, commu
     } catch (err) { setError(errorMessage(err)); } finally { setBusy(null); }
   }
 
+  async function restore() {
+    setBusy("restore"); setError(null); setNotice(null);
+    try {
+      const result = await post<{ report: RestoreReport; inventory: Inventory }>("/api/memories/restore");
+      const r = result.report;
+      if (r.status === "restored") {
+        setNotice(`Recalled ${r.recalled} lessons from Walrus: ${r.created} rebuilt, ${r.relinked} re-linked, ${r.alreadyLocal} already here.${r.relayer ? ` Relayer re-indexed ${r.relayer.restored} of ${r.relayer.total} blobs.` : ""}`);
+      } else {
+        setError(r.error ?? "Restore did not run.");
+      }
+      router.refresh();
+    } catch (err) { setError(errorMessage(err)); } finally { setBusy(null); }
+  }
+
   async function aggregate() {
     setBusy("aggregate"); setError(null); setNotice(null);
     try {
@@ -196,6 +230,23 @@ export function LearningView({ metrics, memories, decisions, verification, commu
           <p className="mt-1.5 text-[10px] leading-relaxed text-muted">Decisions with at least one recalled lesson.</p>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader
+          title="Getting sharper every week"
+          subtitle="Bars: rules LANDED has learned from you and keeps in force. Line: share of each week's advice that achieved its goal, from recorded outcomes only."
+          right={<Badge tone="lime">{curve.summary.rulesAtStart} → {curve.summary.rulesInForce} rules</Badge>}
+        />
+        <div className="px-3 pb-2 sm:px-5">
+          <LearningCurveChart weeks={curve.weeks} />
+        </div>
+        <p className="border-t border-white/[0.06] px-5 py-3 text-[9.5px] leading-relaxed text-muted/70">
+          {curve.summary.sinceMiss
+            ? `After the miss in the week of ${curve.summary.sinceMiss.weekLabel}, LANDED learned ${curve.summary.sinceMiss.lessonsLearned} lessons; ${curve.summary.sinceMiss.achieved} of ${curve.summary.sinceMiss.outcomes} answers since have worked. `
+            : `${curve.summary.achieved} of ${curve.summary.outcomes} recorded answers worked. `}
+          Green dot: advice that worked that week; red: a miss. {curve.summary.note}
+        </p>
+      </Card>
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
@@ -451,6 +502,43 @@ export function LearningView({ metrics, memories, decisions, verification, commu
 
       {tab === "verification" ? (
         <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+          <Card className="lg:col-span-2">
+            <CardHeader
+              title="Total Recall"
+              subtitle="Your memory belongs to your account, not this device. The namespace is derived from your sign-in, so a fresh install recovers the same lessons from Walrus Mainnet."
+              right={<Button size="sm" onClick={restore} loading={busy === "restore"}><RefreshCw className="h-3.5 w-3.5" /> Restore from Walrus</Button>}
+            />
+            <div className="grid gap-px border-t border-white/[0.06] bg-white/[0.06] sm:grid-cols-4">
+              {[
+                { label: "Lessons on Walrus", value: verification.inventory.configured ? String(verification.inventory.lessonBlobs) : "—", tone: "text-lime" },
+                { label: "Journal entries on Walrus", value: verification.inventory.configured ? String(verification.inventory.journalBlobs) : "—" },
+                { label: "Matched to this ledger", value: verification.inventory.configured ? String(verification.inventory.matched) : "—" },
+                { label: "Recoverable here", value: verification.inventory.configured ? String(verification.inventory.onlyOnWalrus) : "—", tone: verification.inventory.onlyOnWalrus > 0 ? "text-amber" : "" },
+              ].map((item) => (
+                <div key={item.label} className="bg-[#11150f] p-4">
+                  <p className="text-[9px] uppercase tracking-[0.1em] text-muted">{item.label}</p>
+                  <p className={`mt-2 text-[20px] tabular-nums text-cream ${item.tone ?? ""}`}>{item.value}</p>
+                </div>
+              ))}
+            </div>
+            <div className="grid gap-4 border-t border-white/[0.06] px-5 py-4 sm:grid-cols-2">
+              <p className="text-[10.5px] leading-relaxed text-muted">
+                Counts come from the relayer&apos;s own inventory (<span className="font-mono">listMemories</span>), not from LANDED&apos;s database — an independent check that “confirmed” means stored.
+                {verification.inventory.onlyLocal > 0 ? ` ${verification.inventory.onlyLocal} locally confirmed record(s) are not listed by the relayer yet.` : ""}
+                {verification.inventory.error ? ` ${verification.inventory.error}` : ""}
+              </p>
+              <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] px-3">
+                <Toggle
+                  checked={consentState.decision_journal ?? false}
+                  onChange={(next) => toggleConsent("decision_journal", next)}
+                  disabled={busy === "decision_journal"}
+                  label="Keep a decision journal on Walrus"
+                  description={`Remember the reasoning: each answer's question, advice and why, in its own namespace. Recallable (“what did you tell me last time?”), never used as a rule. ${verification.counts.journal} entries so far.`}
+                />
+              </div>
+            </div>
+          </Card>
+
           <Card>
             <CardHeader title="Walrus Memory status" subtitle="A write is only counted as confirmed when the relayer returns a blob ID." right={<Database className="h-4 w-4 text-muted" />} />
             <div className="space-y-3 border-t border-white/[0.06] px-5 py-4">

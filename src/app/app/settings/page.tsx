@@ -3,15 +3,17 @@ import { getFinancialContext } from "@/server/services/financial";
 import { tatumHealth } from "@/server/services/tatum";
 import { memoryConfig, memoryHealth, userNamespace } from "@/server/services/memory";
 import { getConsents } from "@/server/services/community";
+import { ratesHealth } from "@/server/services/rates";
 import { SettingsView } from "@/components/SettingsView";
 
 export default async function SettingsPage() {
   const user = await requireUser();
-  const [context, tatum, walrus, consents] = await Promise.all([
+  const [context, tatum, walrus, consents, rates] = await Promise.all([
     getFinancialContext(user.id),
     tatumHealth(),
     memoryHealth(),
     getConsents(user.id),
+    ratesHealth(),
   ]);
   const config = memoryConfig();
 
@@ -85,6 +87,7 @@ export default async function SettingsPage() {
         })),
       }))}
       integrations={{
+        rates,
         tatum: {
           configured: tatum.configured,
           reachable: tatum.reachable,
@@ -111,7 +114,7 @@ export default async function SettingsPage() {
         },
       }}
       consents={consents.map((consent) => ({ consentType: consent.consentType, granted: consent.granted }))}
-      memoryNamespace={userNamespace(user.id)}
+      memoryNamespace={userNamespace(user.email)}
     />
   );
 }

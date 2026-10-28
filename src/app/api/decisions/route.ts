@@ -1,8 +1,9 @@
+import { after } from "next/server";
 import { api, ApiError, parseBody } from "@/server/api";
 import { requireApiUser } from "@/server/auth";
 import { decisionRequestSchema } from "@/lib/types";
 import { parseAmountToMinor } from "@/lib/money";
-import { generateDecision, listDecisions } from "@/server/services/decisions";
+import { generateDecision, journalDecision, listDecisions } from "@/server/services/decisions";
 
 export const GET = api(async (req) => {
   const user = await requireApiUser();
@@ -39,5 +40,7 @@ export const POST = api(async (req) => {
     objective: body.objective,
     memoryMode: body.memoryMode,
   });
+  // The journal write waits for Walrus; it must never delay the advice.
+  after(() => journalDecision(user.id, result.decision.id));
   return result;
 });

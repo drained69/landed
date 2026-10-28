@@ -1,7 +1,8 @@
 import Link from "next/link";
 import {
-  ArrowUpRight, Brain, CircleDollarSign, Database, Fingerprint, GitCompareArrows,
-  Landmark, Route, ShieldCheck, Sparkles, Wallet,
+  ArrowUpRight, BellRing, Brain, CircleDollarSign, Database, Fingerprint, GitCompareArrows,
+  History, Landmark, LineChart, MessageSquareQuote, Route, ShieldCheck, Smartphone, Sparkles,
+  SlidersHorizontal, Trophy, Wallet,
 } from "lucide-react";
 import { getSessionUser } from "@/server/auth";
 import { DemoButton } from "@/components/DemoButton";
@@ -34,18 +35,61 @@ const loop = [
   },
 ];
 
-const evidence = [
+/** The brief: "Walrus Memory keeps scores, preferences, and reasoning across sessions." */
+const remembers = [
   {
-    icon: Landmark,
-    tag: "Tatum · Sui Mainnet",
-    title: "Real onchain reads",
-    body: "Balances and transactions come from Tatum's Sui JSON-RPC gateway when a server-side API key is configured. No public-RPC stand-in labelled as Tatum.",
+    icon: SlidersHorizontal,
+    kind: "Preferences",
+    title: "What you told it to hold",
+    body: "A $120 dining limit. The $18 you agreed to pay for streaming. A $150 cushion you never want to dip below. Set once, kept everywhere.",
+    example: "“Keep dining at or under $120 a month.”",
   },
   {
+    icon: Trophy,
+    kind: "Scores",
+    title: "Which lessons actually work",
+    body: "Every real outcome grades the lessons behind the advice. The ones that keep working get more say; the ones that failed get less and are flagged.",
+    example: "Northline lesson · held 2× · trust 62% → 77%",
+  },
+  {
+    icon: MessageSquareQuote,
+    kind: "Reasoning",
+    title: "Why it said what it said",
+    body: "An optional journal of every answer — the question, the advice, and the reason — so you can ask “what did you tell me last time?” weeks later.",
+    example: "“Last time you asked to send $300, I said $150 now…”",
+  },
+];
+
+const plain = [
+  { icon: Wallet, title: "Dollars, not tokens", body: "You see balances, bills and limits in your own currency. Crypto amounts only appear if you connect a wallet — and then with a sourced dollar value." },
+  { icon: Smartphone, title: "Your memory moves with you", body: "Sign in on a new phone and LANDED restores what it learned about you from Walrus. Nothing to export, nothing to re-teach." },
+  { icon: ShieldCheck, title: "No bank login, no surprises", body: "Enter balances yourself or import a CSV. LANDED never moves money; it advises, then asks what really happened." },
+];
+
+const evidence = [
+  {
     icon: Database,
-    tag: "Walrus Memory",
-    title: "Persistent, portable lessons",
-    body: "Confirmed lessons are written to a per-user namespace. Every record shows its job ID, blob ID, category, status, decision, and timestamp.",
+    tag: "Walrus Memory · Mainnet",
+    title: "Typed lessons, portable text",
+    body: "Each confirmed lesson is written to the account's namespace as self-describing text with its typed rule embedded. Recall is semantic; the database rule stays authoritative.",
+  },
+  {
+    icon: History,
+    tag: "Walrus Memory · restore + inventory",
+    title: "Total Recall on a fresh install",
+    body: "The namespace is derived from the sign-in, not a device, so restore() and recall rebuild the ledger anywhere. listMemories() independently counts what is really stored.",
+  },
+  {
+    icon: Landmark,
+    tag: "Tatum · Sui RPC",
+    title: "Settlement you can check",
+    body: "Wallet balances and history, plus transaction evidence: status, balance changes and gas fill an outcome, and the server re-verifies the digest before calling it onchain-verified.",
+  },
+  {
+    icon: LineChart,
+    tag: "Tatum · Data API",
+    title: "Sourced exchange rates",
+    body: "SUI and stablecoin balances, and Sui gas, are valued in dollars only with a rate Tatum returns — shown with its source and time, never added to safe-to-move.",
   },
   {
     icon: Fingerprint,
@@ -72,8 +116,9 @@ export default async function LandingPage() {
           <span className="text-[15px] font-semibold tracking-[0.16em] text-cream">LANDED</span>
         </Link>
         <nav className="hidden items-center gap-8 text-[12.5px] text-muted md:flex">
-          <a className="transition hover:text-cream" href="#loop">How it learns</a>
-          <a className="transition hover:text-cream" href="#evidence">Integrations</a>
+          <a className="transition hover:text-cream" href="#remembers">What it remembers</a>
+          <a className="transition hover:text-cream" href="#spend">Spend Watch</a>
+          <a className="transition hover:text-cream" href="#evidence">Under the hood</a>
           <a className="transition hover:text-cream" href="#honesty">Honesty</a>
         </nav>
         <div className="flex items-center gap-3">
@@ -106,8 +151,9 @@ export default async function LandingPage() {
                 with a <em className="text-lime not-italic">memory.</em>
               </h1>
               <p className="mt-6 max-w-xl text-[15px] leading-7 text-muted">
-                LANDED finds what is genuinely safe to move, weighs every route against what actually happened last time,
-                and remembers the lesson on Walrus. The next answer is different because the last outcome was real.
+                LANDED tells you what is actually safe to send, save or spend, watches your subscriptions and limits, and
+                remembers what really happened last time. Next week&apos;s answer is better than this week&apos;s — and it
+                follows you to any device.
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 <DemoButton />
@@ -116,8 +162,8 @@ export default async function LandingPage() {
                 </Link>
               </div>
               <p className="mt-5 max-w-md text-[11px] leading-relaxed text-muted/80">
-                The demo is fully seeded with synthetic balances and outcomes, labelled everywhere. No bank connection,
-                exchange rate, or Walrus write is invented.
+                No bank login and no crypto knowledge needed. The demo is seeded with synthetic balances and outcomes,
+                labelled everywhere; no bank connection, exchange rate, or Walrus write is invented.
               </p>
             </div>
 
@@ -173,6 +219,35 @@ export default async function LandingPage() {
           </div>
         </section>
 
+        <section id="remembers" className="mx-auto w-full max-w-6xl px-5 pt-20 sm:px-8 sm:pt-28">
+          <div className="max-w-2xl">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-lime">Apps that remember</p>
+            <h2 className="mt-3 font-display text-4xl leading-tight text-cream sm:text-5xl">Sharper every week, not every login.</h2>
+            <p className="mt-4 text-[14px] leading-7 text-muted">
+              Most money apps forget you the moment you close them. LANDED keeps three kinds of memory on Walrus, and every
+              answer shows which memory shaped it.
+            </p>
+          </div>
+          <div className="mt-10 grid gap-4 lg:grid-cols-3">
+            {remembers.map((item) => {
+              const Icon = item.icon;
+              return (
+                <div key={item.kind} className="panel rounded-2xl p-6">
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-lime/20 bg-lime/[0.06]">
+                      <Icon className="h-4 w-4 text-lime" />
+                    </span>
+                    <span className="text-[10.5px] uppercase tracking-[0.12em] text-muted">{item.kind}</span>
+                  </div>
+                  <h3 className="mt-5 text-[17px] text-cream">{item.title}</h3>
+                  <p className="mt-2 text-[12.5px] leading-6 text-muted">{item.body}</p>
+                  <p className="mt-4 rounded-lg border border-white/[0.07] bg-[#0a0d09] px-3 py-2 font-mono text-[10.5px] leading-relaxed text-lime/80">{item.example}</p>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
         <section id="loop" className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-8 sm:py-28">
           <div className="max-w-2xl">
             <p className="text-[11px] uppercase tracking-[0.18em] text-lime">The learning loop</p>
@@ -199,19 +274,77 @@ export default async function LandingPage() {
           </div>
         </section>
 
+        <section id="spend" className="border-t border-white/[0.06]">
+          <div className="mx-auto grid w-full max-w-6xl gap-10 px-5 py-20 sm:px-8 sm:py-24 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-lime">Spend Watch</p>
+              <h2 className="mt-3 font-display text-4xl leading-tight text-cream sm:text-5xl">It nags you about your rules, not its averages.</h2>
+              <p className="mt-4 text-[14px] leading-7 text-muted">
+                LANDED spots subscriptions, price hikes and spending that runs hot — and only suggests. The moment you say
+                “remember this”, it watches for you from then on, and every alert names the promise it is holding you to.
+              </p>
+              <p className="mt-4 text-[12.5px] text-muted">Without memory: <span className="text-cream">0 alerts</span>. With memory: <span className="text-lime">the ones you asked for</span>.</p>
+            </div>
+            <div className="panel rounded-3xl p-5 sm:p-6">
+              <p className="flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-amber"><BellRing className="h-3.5 w-3.5" /> From what you told LANDED</p>
+              <div className="mt-4 space-y-3">
+                {[
+                  { t: "Streaming bundle charged $21.99 — you approved $18.00", d: "That is $47.88 more a year than the price you agreed to keep.", m: "Approved Streaming bundle at $18.00 · Aug 29" },
+                  { t: "Dining is $32.00 over your limit", d: "$152.00 spent this month against the $120.00 limit you set.", m: "Keep dining at or under $120.00 per month · Sep 24" },
+                ].map((a) => (
+                  <div key={a.t} className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
+                    <p className="text-[13.5px] text-cream">{a.t}</p>
+                    <p className="mt-1 text-[12px] text-muted">{a.d}</p>
+                    <p className="mt-2 flex items-center gap-1.5 font-mono text-[10px] text-muted"><Brain className="h-3 w-3 text-lime/80" /> because: {a.m}</p>
+                  </div>
+                ))}
+                <div className="rounded-xl border border-lime/25 bg-lime/[0.05] p-4">
+                  <p className="text-[12px] text-muted">“Can I spend $60 on dining tonight?”</p>
+                  <p className="mt-1 text-[13px] leading-relaxed text-cream">Cash-wise, yes. By the $120 limit you asked me to hold, it would put dining $92 over — so no.</p>
+                </div>
+              </div>
+              <p className="mt-3 text-center text-[10.5px] text-muted/60">From the seeded demo. Computed by the same engine you use.</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="border-t border-white/[0.06]">
+          <div className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-8 sm:py-24">
+            <div className="max-w-2xl">
+              <p className="text-[11px] uppercase tracking-[0.18em] text-lime">Web2 welcome</p>
+              <h2 className="mt-3 font-display text-4xl leading-tight text-cream sm:text-5xl">No crypto degree required.</h2>
+              <p className="mt-4 text-[14px] leading-7 text-muted">
+                The blockchain does its job out of sight: it keeps your memory and checks settlements. You just see money.
+              </p>
+            </div>
+            <div className="mt-10 grid gap-4 sm:grid-cols-3">
+              {plain.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <div key={item.title} className="panel-flat rounded-2xl p-5">
+                    <Icon className="h-4.5 w-4.5 text-lime" />
+                    <h3 className="mt-5 text-[14px] font-medium text-cream">{item.title}</h3>
+                    <p className="mt-2 text-[12px] leading-relaxed text-muted">{item.body}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
         <section id="evidence" className="border-y border-white/[0.06] bg-[#0a0d09]/70">
           <div className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-8 sm:py-24">
             <div className="flex flex-wrap items-end justify-between gap-6">
               <div className="max-w-xl">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-lime">Under the hood</p>
-                <h2 className="mt-3 font-display text-4xl text-cream sm:text-5xl">Real rails. Honest edges.</h2>
+                <p className="text-[11px] uppercase tracking-[0.18em] text-lime">Under the hood · real stack</p>
+                <h2 className="mt-3 font-display text-4xl text-cream sm:text-5xl">Walrus Mainnet. Tatum RPC and Data APIs.</h2>
               </div>
               <p className="max-w-sm text-[12.5px] leading-relaxed text-muted">
                 When a credential is missing, LANDED says so. It shows a blocked state instead of a fake success or a
                 public endpoint wearing a partner&apos;s name.
               </p>
             </div>
-            <div className="mt-10 grid gap-4 sm:grid-cols-2">
+            <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {evidence.map((item) => {
                 const Icon = item.icon;
                 return (
@@ -240,7 +373,7 @@ export default async function LandingPage() {
             <div className="grid gap-3 sm:grid-cols-2">
               {[
                 "Call a local lesson a Walrus Mainnet write.",
-                "Show a converted balance without a sourced rate.",
+                "Show a converted balance without a sourced Tatum rate.",
                 "Treat an onchain settlement as proof the recipient got paid.",
                 "Let an unconfirmed hypothesis change your recommendation.",
                 "Hide a failed integration behind sample data.",

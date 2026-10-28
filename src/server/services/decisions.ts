@@ -5,11 +5,11 @@ import type {
 } from "@/lib/types";
 import { decide, diffActions, ENGINE_VERSION, type DecisionResult } from "@/server/engine/decision";
 import {
-  evaluateOutcome, extractLessons, formatMemoryText, type EvaluationContext, type EvaluationResult,
+  evaluateOutcome, extractLessons, formatJournalText, formatMemoryText, type EvaluationContext, type EvaluationResult,
 } from "@/server/engine/outcomes";
 import { assessMemory } from "@/server/engine/evidence";
 import { buildDecisionInput, memoryQueryForSnapshot } from "./financial";
-import { recallApplicableMemories, userNamespace, writeMemoryToWalrus } from "./memory";
+import { journalNamespace, recallApplicableMemories, userNamespace, writeMemoryToWalrus } from "./memory";
 import { formatMemoryText as portableText } from "@/server/engine/outcomes";
 
 export interface GenerateDecisionParams {
@@ -102,6 +102,69 @@ export async function generateDecision(userId: string, params: GenerateDecisionP
     },
     diffs: diffActions(result.baselineAction, result.action),
   };
+}
+
+/**
+ * Record what LANDED advised and why as a journal entry (category "reasoning").
+ * Opt-in via the decision_journal consent. Idempotent per decision. Journal
+ * entries have no typed rule and live in their own Walrus namespace, so they
+ * can be recalled ("what did you tell me last month?") but never act as rules.
+ */
+export async function createJournalEntry(userId: string, decisionId: string) {
+  const consent = await prisma.consent.findUnique({
+    where: { userId_consentType: { userId, consentType: "decision_journal" } },
+  });
+  if (!consent?.granted) return null;
+  const decision = await prisma.financialDecision.findFirst({ where: { id: decisionId, userId } });
+  if (!decision || decision.memoryMode !== "live") return null;
+  const existing = await prisma.memoryRecord.findFirst({ where: { userId, decisionId, category: "reasoning" } });
+  if (existing) return existing;
+
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+  const action = parseJson<DecisionAction | null>(decision.recommendedAction, null);
+  const baseline = parseJson<DecisionAction | null>(decision.baselineAction, null);
+  if (!action) return null;
+  const refs = parseJson<{ memoryId: string }[]>(decision.memoryReferences, []);
+  return prisma.memoryRecord.create({
+    data: {
+      userId,
+      decisionId,
+      category: "reasoning",
+      summary: `Advised: ${action.headline}`.slice(0, 400),
+      lesson: formatJournalText({
+        decisionId,
+        createdAt: decision.createdAt.toISOString(),
+        question: decision.objective,
+        advice: action.headline,
+        amountMinor: action.amountMinor,
+        baselineAmountMinor: baseline?.amountMinor ?? action.amountMinor,
+        currency: decision.currency,
+        rationale: action.rationale,
+        memoryIds: [...new Set(refs.map((r) => r.memoryId))],
+      }),
+      confidence: decision.confidence,
+      evidenceQuality: "verified",
+      verificationStatus: "verified",
+      namespace: journalNamespace(user.email),
+      writeStatus: "pending",
+      source: "local_rehearsal",
+      isSynthetic: user.isDemo,
+      createdAt: decision.createdAt,
+    },
+  });
+}
+
+/** Create the journal entry and write it to Walrus. Safe to run after the response. */
+export async function journalDecision(userId: string, decisionId: string) {
+  try {
+    const entry = await createJournalEntry(userId, decisionId);
+    if (!entry || entry.writeStatus === "confirmed") return entry;
+    await writeMemoryToWalrus(userId, entry.id);
+    return entry;
+  } catch (error) {
+    console.error("[journal]", error instanceof Error ? error.message : error);
+    return null;
+  }
 }
 
 function defaultObjective(params: GenerateDecisionParams, result: DecisionResult): string {
@@ -339,7 +402,7 @@ export async function recordOutcome(params: {
         confidence: onchainVerified ? Math.min(0.95, lesson.confidence + 0.05) : lesson.confidence,
         evidenceQuality: onchainVerified ? "verified_onchain" : lesson.evidenceQuality,
         verificationStatus: lesson.verificationStatus,
-        namespace: userNamespace(params.userId),
+        namespace: userNamespace(user.email),
         writeStatus: "pending",
         source: "local_rehearsal",
         isSynthetic: user.isDemo,

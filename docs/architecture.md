@@ -127,6 +127,21 @@ Deterministic and integer-only. Recurring charges are detected per merchant from
 
 Heuristics only ever produce **proposals**. **Alerts** are raised exclusively by confirmed `SPEND_LIMIT` / `SUBSCRIPTION_WATCH` memories, so each alert carries the memory ID (and blob ID once written) that caused it, and the no-memory view has zero alerts by construction. Remembering a proposal, or updating a rule, creates a new confirmed memory and supersedes the old one; history is never rewritten.
 
+### Total Recall, inventory and the decision journal
+
+- **Namespace** = `sha256("landed:email:" + normalized sign-in email)` → `landed-<24 hex>`. Deriving it from the sign-in rather than the database row id makes memory portable across devices and fresh installs. Journal entries use `<namespace>-journal`, so they are never recalled as rules.
+- **`walrusInventory`** walks `listMemories()` and counts blobs in both namespaces, then compares them with locally confirmed blob IDs (`matched`, `onlyOnWalrus`, `onlyLocal`). `pnpm walrus:verify` requires the minimum against both the ledger and this inventory.
+- **`restoreFromWalrus`** calls `restore(namespace)` so the relayer re-indexes any blobs it is missing, recalls LANDED's portable lesson texts with several broad queries, and recreates or re-links rows it does not have. `parsePortableLesson` is the exact inverse of `formatMemoryText` (tested as a round trip), so a recovered lesson's typed rule changes advice again.
+- **Decision journal** (opt-in consent `decision_journal`): after each live decision, `after()` writes the question, advice, baseline and reason as a `reasoning` record. It has no typed rule and is excluded from rule recall; `recallJournal` answers "what did you tell me last time?".
+
+### Learning curve
+
+`getLearningCurve` buckets the last six weeks by when advice was given: outcomes and how many achieved their goal, track-record verdicts, lessons learned, and confirmed rules in force at week end. The summary reports what happened after the most recent miss rather than a first-versus-last percentage, which small samples would make misleading.
+
+### Tatum Data API rates
+
+`src/server/services/rates.ts` calls `POST /v4/data/rate/symbol/batch` (60-second cache) and keeps each rate as the decimal string Tatum returned, with its source and timestamp. `convertToMinor` converts base units to cents with BigInt arithmetic and half-up rounding. Converted values are reference only (dashboard balances, gas in USD) and never enter safe-to-move.
+
 ### Tatum-verified outcomes
 
 `POST /api/tatum/transaction` reads `sui_getTransactionBlock` through Tatum and returns settlement status, sender, per-owner balance changes and net gas (computation + storage − rebate, in SUI). The outcome form can fill amount sent, received and delivery hours from it, but only for balance changes already in the decision's currency; SUI gas is shown, never converted. On save, the outcome route re-reads the digest server-side: a non-success transaction is refused, and `onchain_verified` can no longer be claimed by the client. Lessons drafted from a verified outcome are tagged `verified_onchain` with slightly higher confidence.

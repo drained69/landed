@@ -13,7 +13,7 @@ import type { Prisma } from "@prisma/client";
 import { hashPassword } from "../src/server/auth";
 import { buildDecisionInput } from "../src/server/services/financial";
 import { decide, ENGINE_VERSION } from "../src/server/engine/decision";
-import { generateDecision, recordOutcome } from "../src/server/services/decisions";
+import { createJournalEntry, generateDecision, recordOutcome } from "../src/server/services/decisions";
 import { listActiveRuleMemories, writeMemoryToWalrus } from "../src/server/services/memory";
 
 const DEMO_EMAIL = "demo@landed.app";
@@ -732,6 +732,23 @@ async function main() {
     objective: "Can I send $300 to my sister today?",
   });
 
+  // ── Decision journal (scenario 14): the reasoning behind each answer ────
+  await prisma.consent.upsert({
+    where: { userId_consentType: { userId: user.id, consentType: "decision_journal" } },
+    create: { userId: user.id, consentType: "decision_journal", granted: true },
+    update: { granted: true },
+  });
+  const liveDecisions = await prisma.financialDecision.findMany({ where: { userId: user.id, memoryMode: "live" }, orderBy: { createdAt: "asc" } });
+  for (const d of liveDecisions) {
+    const entry = await createJournalEntry(user.id, d.id);
+    if (entry && process.env.SEED_WALRUS !== "true") {
+      await prisma.memoryRecord.update({
+        where: { id: entry.id },
+        data: { writeStatus: "blocked", writeError: "Walrus Memory is not configured. Local rehearsal only." },
+      });
+    }
+  }
+
   await prisma.auditEvent.create({
     data: {
       userId: user.id,
@@ -749,7 +766,7 @@ async function main() {
           "safety buffer preference", "more expensive route wins",
           "user-corrected explanation", "lesson superseded", "memory changes next decision",
           "subscription price above approved", "category pacing over learned limit",
-          "lessons judged by a later outcome",
+          "lessons judged by a later outcome", "decision journal of past advice",
         ],
       }),
     },
@@ -757,7 +774,7 @@ async function main() {
 
   if (process.env.SEED_WALRUS === "true") {
     const confirmed = await prisma.memoryRecord.findMany({
-      where: { userId: user.id, verificationStatus: "user_confirmed", writeStatus: "blocked" },
+      where: { userId: user.id, verificationStatus: { in: ["user_confirmed", "verified"] }, writeStatus: { in: ["blocked", "pending"] } },
     });
     for (const memory of confirmed) {
       await writeMemoryToWalrus(user.id, memory.id);

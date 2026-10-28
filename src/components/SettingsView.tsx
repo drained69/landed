@@ -35,7 +35,10 @@ export function SettingsView({
   commitments: Commitment[];
   goals: Goal[];
   routes: RouteRow[];
-  integrations: { tatum: Integration; walrus: Integration; ai: { configured: boolean; note: string } };
+  integrations: {
+    tatum: Integration; walrus: Integration; ai: { configured: boolean; note: string };
+    rates: { configured: boolean; reachable: boolean; error: string | null; sample: { symbol: string; basePair: string; value: string; source: string; timestamp: string } | null };
+  };
   consents: Consent[];
   memoryNamespace: string;
 }) {
@@ -485,6 +488,13 @@ export function SettingsView({
                   <Button size="sm" variant="secondary" onClick={lookupWallet} loading={busy === "wallet"} disabled={!walletAddress}><RefreshCw className="h-3 w-3" /> Test read</Button>
                   <Button size="sm" onClick={syncWallet} loading={busy === "wallet-sync"} disabled={!walletAddress}><Link2 className="h-3 w-3" /> Sync</Button>
                 </div>
+              </div>
+              <div className="space-y-2 border-t border-white/[0.07] pt-3">
+                <div className="flex items-center justify-between text-[11px]"><span className="text-muted">Data API · exchange rates</span><Badge tone={integrations.rates.reachable ? "lime" : "amber"}>{integrations.rates.configured ? (integrations.rates.reachable ? "reachable" : "error") : "not configured"}</Badge></div>
+                {integrations.rates.sample ? (
+                  <p className="text-[10.5px] text-cream/80">1 {integrations.rates.sample.symbol} = {integrations.rates.sample.value} {integrations.rates.sample.basePair} <span className="text-muted">· {integrations.rates.sample.source} · {new Date(integrations.rates.sample.timestamp).toLocaleString("en-US")}</span></p>
+                ) : null}
+                <p className="text-[10px] leading-relaxed text-muted/80">Used to value SUI and stablecoin balances and to show Sui gas in USD. Converted values are shown for reference and never added to safe-to-move.{integrations.rates.error ? ` ${integrations.rates.error}` : ""}</p>
               </div>
               {walletResult ? (
                 <div className="rounded-xl border border-lime/20 bg-lime/[0.04] p-3">

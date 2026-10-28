@@ -17,12 +17,16 @@ context → deterministic decision → user follows → real outcome
 | Area | State |
 | --- | --- |
 | Financial engine | Real. Deterministic integer-minor-unit arithmetic, 45-day cash-flow simulation, route ranking. No LLM math. |
-| Demo data | **Synthetic and labelled everywhere.** 5 accounts, 53 transactions, 5 bills, 4 routes, 5 decisions, 21 lessons. |
+| Demo data | **Synthetic and labelled everywhere.** 5 accounts, 53 transactions, 5 bills, 4 routes, 5 decisions, 21 lessons, 5 journal entries. |
 | Spend Watch | Real. Deterministic recurring-charge detection and category pacing. Alerts come only from user-confirmed `SPEND_LIMIT` / `SUBSCRIPTION_WATCH` memories. |
 | Memory track record | Real. Every recorded outcome judges the lessons behind its decision (held / contradicted / inconclusive) and moves their confidence, which changes how strongly they act next time. |
-| Tatum Sui | Real JSON-RPC integration (`sui-mainnet.gateway.tatum.io`) when `TATUM_API_KEY` is set: wallet balances and history, and transaction evidence (status, balance changes, gas) that fills and verifies outcomes. Without it: HTTP 503 and an explicit `not configured` state. No public-RPC substitution. |
+| Tatum Sui RPC | Real JSON-RPC integration (`sui-mainnet.gateway.tatum.io`) when `TATUM_API_KEY` is set: wallet balances and history, and transaction evidence (status, balance changes, gas) that fills and verifies outcomes. Without it: HTTP 503 and an explicit `not configured` state. No public-RPC substitution. |
+| Tatum Data API | Real `/v4/data/rate/symbol/batch` exchange rates (same key). Values SUI/stablecoin balances and Sui gas in dollars with the rate's source and timestamp; never added to safe-to-move. Without a key, crypto stays in its own units. |
+| Total Recall | Real `restore()` + recall rebuild the lesson ledger from Walrus on a fresh install; `listMemories()` independently counts what is stored. The namespace is derived from the sign-in email, so memory follows the person, not the device. |
+| Decision journal | Opt-in. Each answer's question, advice and reason is written to its own Walrus namespace and can be recalled ("what did you tell me last time?"). Never used as a rule. |
+| Learning curve | Weekly rules-in-force and advice outcomes on Overview and Memory, from recorded outcomes only. |
 | Walrus Memory | Real `@mysten-incubation/memwal` writes and recalls when `MEMWAL_PRIVATE_KEY` + `MEMWAL_ACCOUNT_ID` are set. A record is only `confirmed` when the relayer returns a blob ID. |
-| Confirmed Mainnet memories | **0 in this checkout** — credentials are not present. The app reports 0 and labels all 21 lessons as local rehearsal. Nothing is faked. |
+| Confirmed Mainnet memories | **0 in this checkout** — credentials are not present. The app reports 0 and labels all 26 records as local rehearsal. Nothing is faked. |
 | AI explanation layer | Optional OpenAI-compatible endpoint. Arithmetic, ranking, memory rules, and writes never depend on it. |
 | Bank connections | None. Balances are self-reported, CSV-imported, or verified onchain through Tatum. |
 
@@ -60,7 +64,7 @@ pnpm db:reset
 ```bash
 pnpm typecheck
 pnpm lint
-pnpm test          # 53 tests: money, cash flow, routes, outcomes, replay cutoff, cross-user auth, Spend Watch, track record
+pnpm test          # 61 tests: money, cash flow, routes, outcomes, replay cutoff, cross-user auth, Spend Watch, track record, sourced rates, portable text
 pnpm build
 ```
 
@@ -76,7 +80,9 @@ pnpm build
 8. **Memory** — ledger with category, status, blob ID, decision, confirmation time, verification and consent controls.
 9. **Track record** — lessons tested by later outcomes: verdicts, reasons, and confidence before → after. A lesson that applied and still failed loses confidence and is flagged for review.
 10. **Spend Watch** — recurring charges and category pace. Remember a limit or approve a price; from then on it alerts, across sessions, and names the memory behind every alert.
-11. **Verify with Tatum** — when recording an outcome, paste a Sui digest. LANDED reads it through Tatum, fills the facts in the decision's currency, and re-verifies it server-side before marking the outcome onchain-verified.
+11. **Verify with Tatum** — when recording an outcome, paste a Sui digest. LANDED reads it through Tatum, fills the facts in the decision's currency, shows gas in SUI and (with a Tatum Data API rate) in dollars, and re-verifies the digest server-side before marking the outcome onchain-verified.
+12. **Total Recall** — Memory → Walrus verification. The relayer's own inventory shows what is stored; **Restore from Walrus** rebuilds the ledger on a fresh install.
+13. **Ask about the past** — “What did you tell me last time I asked about sending money?” recalls the decision journal.
 
 ## How memory changes a decision
 
@@ -89,7 +95,7 @@ On recall, the database rule wins; the Walrus text is a fallback. That keeps mem
 
 Memory is also **accountable**. Each outcome writes a `MemoryEvidence` verdict for every lesson that shaped the decision. Held lessons gain confidence (toward 0.95), contradicted ones lose it (toward 0.10), and confidence already weights how strongly a rule acts in the cash-flow and route engines — so a lesson that keeps working gets more say, and one that failed gets less, without anything being deleted.
 
-Per-user namespace: `sha256("landed:" + userId)` rendered as `landed-<24 hex>`, derived server-side. Every database query is scoped by `userId`; Walrus is never the authorization boundary.
+Per-account namespace: `sha256("landed:email:" + normalized sign-in email)` rendered as `landed-<24 hex>` (journal entries use `<namespace>-journal`), derived server-side. Using the sign-in rather than the database row id is what makes memory portable: a fresh install or a new device recalls the same lessons. Every database query is still scoped by `userId`; Walrus is never the authorization boundary.
 
 ## Architecture
 
@@ -99,7 +105,7 @@ Per-user namespace: `sha256("landed:" + userId)` rendered as `landed-<24 hex>`, 
 - API handlers centralize auth, validation, error mapping, and ownership checks.
 - **No floating-point money.** Parsing, rounding, caps, reserves, and comparisons use integer minor units.
 
-More detail: [architecture](docs/architecture.md) · [setup and deployment](docs/setup.md) · [demo script](docs/demo-script.md) · [technical blog](docs/blog.md).
+More detail: [architecture](docs/architecture.md) · [setup and deployment](docs/setup.md) · [demo script](docs/demo-script.md) · [technical blog](docs/blog.md) · [submission checklist](docs/submission.md).
 
 ## Commands
 
@@ -110,7 +116,7 @@ More detail: [architecture](docs/architecture.md) · [setup and deployment](docs
 | `pnpm setup` | Generate client, push schema, seed demo |
 | `pnpm db:reset` | Force-reset local DB and reseed |
 | `pnpm demo:snapshot` | Print the demo account's headline numbers and Spend Watch state |
-| `pnpm walrus:verify` | Check credentials/relayer, list confirmed blob IDs, require 10 confirmed by default |
+| `pnpm walrus:verify` | Check credentials/relayer, list confirmed blob IDs, cross-check the relayer's own inventory, require 10 by default |
 | `pnpm walrus:verify --min=0` | Same checks without the 10-write minimum |
 | `pnpm walrus:backfill --dry-run` | Show lessons eligible for a Walrus retry |
 | `pnpm walrus:backfill` | Retry pending/failed/blocked non-synthetic lessons |
@@ -133,7 +139,11 @@ A `Dockerfile`, `.dockerignore`, and `railway.json` are included. SQLite needs a
 | Requirement | Implementation |
 | --- | --- |
 | Genuinely recalled memory changes advice | Seeded `AMOUNT_CAP` + route preference move `$300` → `$150 now / $150 later`; every applied rule carries its memory ID |
-| ≥10 confirmed Walrus Mainnet memories | Ready via `pnpm walrus:backfill`; `pnpm walrus:verify` enforces the count. **Blocked here: credentials absent** |
+| ≥10 confirmed Walrus Mainnet memories | Ready via `pnpm walrus:backfill` (26 eligible records: lessons + journal); `pnpm walrus:verify` enforces the count against both the ledger and the relayer inventory. **Blocked here: credentials absent** |
+| Tatum Data APIs | `/v4/data/rate/symbol/batch` for sourced SUI/stablecoin valuations and gas in USD |
+| "Keeps scores, preferences, and reasoning across sessions" | Scores: memory track record. Preferences: typed rules (`SPEND_LIMIT`, `BUFFER_FLOOR`, …). Reasoning: decision journal. Across sessions and devices: email-derived namespace + Restore from Walrus |
+| "Sharper every week" | Weekly learning curve: rules in force and advice outcomes, plus confidence that moves with evidence |
+| Web2 welcome / blockchain invisible | Dollars-first UI; Sui and Walrus details live under proof panels; landing page leads with everyday benefits |
 | Memory ID, category, status, blob, decision, timestamp | Memory ledger and `/api/memories/verify` |
 | Real Tatum Sui reads | `sui_getLatestCheckpointSequenceNumber`, balances, owned objects, transaction blocks through Tatum only; digests re-verified server-side before an outcome is `onchain_verified` |
 | Consumer Finance track: spend tracking, subscriptions with learned limits | Spend Watch: recurring-charge detection, category pacing, `SPEND_LIMIT` / `SUBSCRIPTION_WATCH` memories, memory-only alerts, Ask LANDED purchase checks |

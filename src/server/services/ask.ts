@@ -4,7 +4,7 @@ import { formatMinor } from "@/lib/money";
 import type { DecisionAction, DecisionType } from "@/lib/types";
 import { generateDecision } from "./decisions";
 import { getFinancialContext, buildDecisionInput } from "./financial";
-import { recallApplicableMemories } from "./memory";
+import { recallApplicableMemories, recallJournal } from "./memory";
 import { computeCashFlow } from "@/server/engine/cashflow";
 import { rankRoutes } from "@/server/engine/routes";
 import { cashFlowInputFromSnapshot } from "./financial";
@@ -49,6 +49,29 @@ export async function askLanded(userId: string, message: string): Promise<AskRes
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
   const m = message.toLowerCase();
   const currency = user.preferredCurrency;
+
+  if (/\b(what did you (tell|advise|say|recommend)|last time|previously|advice history|journal)\b/.test(m)) {
+    const journal = await recallJournal(userId, message, 4);
+    if (journal.hits.length === 0) {
+      return {
+        kind: "answer",
+        message: "I have no journal of past advice yet. Turn on the decision journal in Memory and every answer I give — the question, the advice and why — is kept on Walrus so I can tell you later.",
+        warning: journal.error,
+      };
+    }
+    const top = journal.hits[0];
+    return {
+      kind: "learning",
+      message: `${top.createdAt ? `On ${new Date(top.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : "Previously"} you asked “${top.question}”. I said: ${top.advice}. Because: ${top.because}`,
+      cards: journal.hits.slice(0, 3).map((h) => ({
+        label: h.createdAt ? new Date(h.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "Earlier",
+        value: h.advice,
+        detail: `${h.question}${h.blobId ? ` · Walrus blob ${h.blobId.slice(0, 10)}…` : " · local journal"}`,
+      })),
+      warning: journal.error,
+      suggestions: ["What did you learn from my last transfer?", "Can I send $300 to my sister today?"],
+    };
+  }
 
   if (/\b(what did you learn|last transfer|remember about|learn from|memory|memories)\b/.test(m)) {
     const last = await prisma.financialDecision.findFirst({
@@ -225,6 +248,7 @@ export async function askLanded(userId: string, message: string): Promise<AskRes
         "What did you learn from my last transfer?",
         "How much have I committed to bills this month?",
         "Any subscriptions or limits I should know about?",
+        "What did you tell me last time I asked about sending money?",
       ],
       warning: null,
     };

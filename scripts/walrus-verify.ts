@@ -58,6 +58,7 @@ async function main() {
 
   let confirmedTotal = 0;
   let syntheticConfirmed = 0;
+  let inventoryTotal = 0;
 
   for (const user of users) {
     const ledger = await verifyMemoryLedger(user.id);
@@ -80,9 +81,19 @@ async function main() {
     if (ledger.counts.confirmed === 0) {
       line("Note", ledger.note);
     }
+    const inv = ledger.inventory;
+    if (inv.configured && !inv.error) {
+      inventoryTotal += inv.lessonBlobs + inv.journalBlobs;
+      line(
+        "Relayer inventory",
+        `${inv.lessonBlobs} lesson blob(s) · ${inv.journalBlobs} journal blob(s) · ${inv.matched} matched · ${inv.onlyOnWalrus} only on Walrus · ${inv.onlyLocal} only local${inv.truncated ? " · truncated" : ""}`,
+      );
+    } else if (inv.error) {
+      line("Relayer inventory", inv.error);
+    }
   }
 
-  console.log(`\nConfirmed Mainnet writes: ${confirmedTotal} (minimum requested: ${min})`);
+  console.log(`\nConfirmed Mainnet writes: ${confirmedTotal} in LANDED's ledger · ${inventoryTotal} listed by the relayer (minimum requested: ${min})`);
   if (syntheticConfirmed > 0) {
     console.log(`  of which synthetic demo lessons: ${syntheticConfirmed}`);
   }
@@ -97,12 +108,13 @@ async function main() {
     process.exitCode = 1;
     return;
   }
-  if (confirmedTotal < min) {
-    console.error(`\nRESULT: incomplete — ${confirmedTotal} confirmed write(s), ${min} required. Run pnpm walrus:backfill.`);
+  // The relayer's own inventory is the independent count; the ledger must agree.
+  if (Math.min(confirmedTotal, inventoryTotal) < min) {
+    console.error(`\nRESULT: incomplete — ${confirmedTotal} confirmed in the ledger, ${inventoryTotal} listed by the relayer, ${min} required. Run pnpm walrus:backfill.`);
     process.exitCode = 1;
     return;
   }
-  console.log("\nRESULT: verified. Every confirmed lesson has a returned Walrus blob ID.");
+  console.log("\nRESULT: verified. Every confirmed lesson has a returned Walrus blob ID, and the relayer lists them.");
 }
 
 main()

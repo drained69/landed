@@ -5,6 +5,7 @@ import type {
 } from "@/lib/types";
 import { computeCashFlow, type CashFlowInput } from "@/server/engine/cashflow";
 import { recallApplicableMemories } from "./memory";
+import { convertToMinor, getRates, type SourcedRate } from "./rates";
 
 export interface FinancialContext {
   accounts: Awaited<ReturnType<typeof prisma.financialAccount.findMany>>;
@@ -456,7 +457,26 @@ export async function getDashboard(userId: string) {
     });
   }
 
+  // Other-currency balances get a reference value only when Tatum's Data API
+  // returns a sourced rate. They are never added to safe-to-move.
+  const foreign = [...currencies.values()].filter((c) => c.currency !== baseCurrency);
+  const valuations: { currency: string; valueMinor: number; rate: SourcedRate }[] = [];
+  let valuationNote: string | null = null;
+  if (foreign.length > 0) {
+    try {
+      const rates = await getRates(foreign.map((c) => c.currency), baseCurrency);
+      for (const c of foreign) {
+        const rate = rates.get(c.currency.toUpperCase());
+        if (rate) valuations.push({ currency: c.currency, valueMinor: convertToMinor(BigInt(c.liquidMinor + c.nonLiquidMinor), 2, rate), rate });
+      }
+    } catch (error) {
+      valuationNote = error instanceof Error ? error.message : "Tatum rates unavailable";
+    }
+  }
+
   return {
+    valuations,
+    valuationNote,
     user: {
       name: user.name,
       currency: baseCurrency,

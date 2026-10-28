@@ -273,12 +273,101 @@ export function formatMemoryText(params: {
     `created=${params.createdAt}`,
     `decision=${params.decisionId}`,
     `confidence=${params.confidence.toFixed(2)}`,
-    `summary: ${params.summary}`,
-    `lesson: ${params.lesson}`,
+    `summary: ${oneLine(params.summary)}`,
+    `lesson: ${oneLine(params.lesson)}`,
     `rule: ${JSON.stringify(params.rule)}`,
     `conditions: ${JSON.stringify(params.conditions)}`,
     "scope: personal financial decision; evidence is limited to the referenced outcome. Do not universalize.",
   ].join("\n");
+}
+
+/** The portable text is line-oriented; a newline inside a field would break parsing. */
+function oneLine(value: string): string {
+  return value.replace(/\s*\n\s*/g, " ").trim();
+}
+
+export interface PortableLesson {
+  memoryId: string;
+  category: string;
+  createdAt: string | null;
+  decisionId: string | null;
+  confidence: number | null;
+  summary: string;
+  lesson: string;
+  rule: unknown | null;
+  conditions: unknown | null;
+}
+
+/**
+ * Inverse of formatMemoryText. Used to rebuild a ledger from Walrus alone, so a
+ * fresh install can recover its lessons. Returns null for text that is not a
+ * LANDED lesson.
+ */
+export function parsePortableLesson(text: string): PortableLesson | null {
+  const id = text.match(/^LANDED lesson \[([^\]\n]+)\]/m)?.[1];
+  if (!id) return null;
+  const field = (name: string, sep: "=" | ":") => {
+    const match = text.match(new RegExp(`^${name}${sep}\\s?(.*)$`, "m"));
+    return match ? match[1].trim() : null;
+  };
+  const json = (raw: string | null) => {
+    if (!raw) return null;
+    try { return JSON.parse(raw) as unknown; } catch { return null; }
+  };
+  const confidence = Number(field("confidence", "="));
+  const created = field("created", "=");
+  const decision = field("decision", "=");
+  return {
+    memoryId: id,
+    category: field("category", "=") ?? "outcome",
+    createdAt: created && !Number.isNaN(Date.parse(created)) ? new Date(created).toISOString() : null,
+    decisionId: decision && decision !== "none" ? decision : null,
+    confidence: Number.isFinite(confidence) && confidence >= 0 && confidence <= 1 ? confidence : null,
+    summary: field("summary", ":") ?? "",
+    lesson: field("lesson", ":") ?? "",
+    rule: json(field("rule", ":")),
+    conditions: json(field("conditions", ":")),
+  };
+}
+
+/** A decision journal entry: what LANDED advised, against what, and why. Never a rule. */
+export function formatJournalText(params: {
+  decisionId: string;
+  createdAt: string;
+  question: string;
+  advice: string;
+  amountMinor: number;
+  baselineAmountMinor: number;
+  currency: string;
+  rationale: string;
+  memoryIds: string[];
+}): string {
+  return [
+    `LANDED decision journal [${params.decisionId}]`,
+    `created=${params.createdAt}`,
+    `currency=${params.currency}`,
+    `amount_minor=${params.amountMinor}`,
+    `baseline_minor=${params.baselineAmountMinor}`,
+    `question: ${oneLine(params.question)}`,
+    `advice: ${oneLine(params.advice)}`,
+    `because: ${oneLine(params.rationale)}`,
+    `memories: ${params.memoryIds.join(", ") || "none"}`,
+    "scope: a record of advice given, not a rule. It never changes a future recommendation by itself.",
+  ].join("\n");
+}
+
+export function parseJournalText(text: string): { decisionId: string; createdAt: string | null; question: string; advice: string; because: string } | null {
+  const id = text.match(/^LANDED decision journal \[([^\]\n]+)\]/m)?.[1];
+  if (!id) return null;
+  const line = (name: string) => text.match(new RegExp(`^${name}[:=]\\s?(.*)$`, "m"))?.[1]?.trim() ?? "";
+  const created = line("created");
+  return {
+    decisionId: id,
+    createdAt: created && !Number.isNaN(Date.parse(created)) ? new Date(created).toISOString() : null,
+    question: line("question"),
+    advice: line("advice"),
+    because: line("because"),
+  };
 }
 
 export function parseRuleFromMemoryText(text: string): unknown | null {

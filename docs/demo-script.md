@@ -106,8 +106,12 @@ Click **Memory**.
 
 Point at:
 
-- **21 records**, **0 confirmed Mainnet writes**, all local rehearsal
+- **26 records** (21 lessons + 5 journal entries), **0 confirmed Mainnet writes**, all local rehearsal
+- **Getting sharper every week** chart: rules in force grow from 1 to 20; the week of the shortfall shows a red miss, and the advice after it worked
 - **Track record** tab: lessons tested by later outcomes, **6 verdicts held, 0 contradicted**, confidence moving e.g. **62% → 77%** for the Northline lesson
+- **Walrus verification → Total Recall**: counts from the relayer's own inventory and **Restore from Walrus** for a fresh install; the decision-journal toggle
+
+Ask LANDED: “What did you tell me last time I asked about sending money?” — the journal answers with the question, the advice, and the reason.
 - Category, verification, write status, blob ID, decision, timestamp
 - A blocked write explanation: missing `MEMWAL_PRIVATE_KEY` / `MEMWAL_ACCOUNT_ID`
 

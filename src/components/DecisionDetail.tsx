@@ -16,7 +16,8 @@ type Decision = NonNullable<Awaited<ReturnType<typeof getDecision>>>;
 
 type ChainEvidence = {
   digest: string; status: string; error: string | null; timestamp: string; sender: string | null;
-  gasFeeSui: string; explorerUrl: string; note: string;
+  gasFeeSui: string; gasFeeUsdMinor: number | null; explorerUrl: string; note: string;
+  rate: { value: string; source: string; timestamp: string } | null;
   balanceChanges: { owner: string | null; symbol: string | null; coinType: string; amountMinor: number | null; direction: "in" | "out" }[];
 };
 
@@ -286,7 +287,7 @@ export function DecisionDetail({ decision }: { decision: Decision }) {
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge tone={chain.status === "success" ? "lime" : "red"}>{chain.status}</Badge>
                     <span className="text-muted">{new Date(chain.timestamp).toLocaleString("en-US")}</span>
-                    <span className="text-muted">· gas {chain.gasFeeSui} SUI</span>
+                    <span className="text-muted">· gas {chain.gasFeeSui} SUI{chain.gasFeeUsdMinor !== null && chain.rate ? ` ≈ ${formatMinor(chain.gasFeeUsdMinor, "USD")} (Tatum rate ${chain.rate.value}, ${chain.rate.source})` : ""}</span>
                     <a href={chain.explorerUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-lime hover:underline">explorer <ExternalLink className="h-2.5 w-2.5" /></a>
                   </div>
                   <ul className="space-y-1 font-mono text-[10px] text-cream/75">

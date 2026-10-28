@@ -9,8 +9,17 @@ import type { getDashboard } from "@/server/services/financial";
 import { formatMinor } from "@/lib/money";
 import { Badge, Card, CardHeader } from "@/components/ui";
 import { CashflowChart } from "@/components/CashflowChart";
+import { LearningCurveChart, type LearningWeekPoint } from "@/components/LearningCurveChart";
 
 type Dashboard = Awaited<ReturnType<typeof getDashboard>>;
+type Curve = {
+  weeks: LearningWeekPoint[];
+  summary: {
+    outcomes: number; achieved: number; rulesInForce: number; rulesAtStart: number; lessonsLearned: number;
+    sinceMiss: { weekLabel: string; lessonsLearned: number; outcomes: number; achieved: number } | null;
+  };
+};
+type SpendSummary = { alerts: { key: string; title: string; memorySummary: string }[]; recurringMonthlyMinor: number };
 
 function daysLabel(days: number) {
   if (days <= 0) return "Due now";
@@ -29,7 +38,7 @@ const modeLabel: Record<string, { label: string; tone: "lime" | "amber" | "sky" 
   mixed: { label: "Walrus + local fallback", tone: "sky" },
 };
 
-export function DashboardView({ data }: { data: Dashboard }) {
+export function DashboardView({ data, curve, spend }: { data: Dashboard; curve: Curve; spend: SpendSummary }) {
   const cf = data.cashflow;
   const mode = modeLabel[data.memoryRetrieval.mode] ?? modeLabel.local_rehearsal;
   const cleared = Math.max(1, cf.clearedLiquidMinor);
@@ -140,8 +149,16 @@ export function DashboardView({ data }: { data: Dashboard }) {
               <Link href="/app/learning" className="text-muted transition hover:text-lime"><ArrowUpRight className="h-3.5 w-3.5" /></Link>
             </div>
             <div className="mt-4 flex items-baseline gap-2">
-              <span className="font-display text-[34px] leading-none text-cream">{data.learning.memoryCount}</span>
-              <span className="text-[11px] text-muted">lessons</span>
+              <span className="font-display text-[34px] leading-none text-cream">{curve.summary.rulesInForce}</span>
+              <span className="text-[11px] text-muted">rules learned from you</span>
+            </div>
+            <p className="mt-1.5 text-[11px] leading-relaxed text-muted">
+              {curve.summary.sinceMiss
+                ? <>After the miss in week of {curve.summary.sinceMiss.weekLabel}, it learned <span className="text-cream">{curve.summary.sinceMiss.lessonsLearned} lessons</span>; <span className="text-lime">{curve.summary.sinceMiss.achieved} of {curve.summary.sinceMiss.outcomes}</span> answers since have worked.</>
+                : <>{curve.summary.achieved} of {curve.summary.outcomes} recorded answers worked.</>}
+            </p>
+            <div className="mt-2">
+              <LearningCurveChart weeks={curve.weeks} height={72} compact />
             </div>
             <p className="mt-2 text-[11px] leading-relaxed text-muted">
               {data.learning.confirmedMemoryCount > 0
@@ -165,17 +182,49 @@ export function DashboardView({ data }: { data: Dashboard }) {
             </div>
             <div className="mt-4 space-y-2.5">
               {data.currencies.length === 0 ? <p className="text-[11px] text-muted">No accounts entered.</p> : null}
-              {data.currencies.map((currency) => (
+              {data.currencies.map((currency) => {
+                const valuation = data.valuations.find((v) => v.currency === currency.currency);
+                return (
                 <div key={currency.currency} className="flex items-baseline justify-between gap-3">
                   <span className="text-[11px] text-muted">{currency.currency} <span className="text-muted/50">· {currency.accounts} acct</span></span>
-                  <span className="text-[13px] tabular-nums text-cream">{formatMinor(currency.liquidMinor + currency.nonLiquidMinor, currency.currency)}</span>
+                  <span className="text-right">
+                    <span className="block text-[13px] tabular-nums text-cream">{formatMinor(currency.liquidMinor + currency.nonLiquidMinor, currency.currency)}</span>
+                    {valuation ? (
+                      <span className="block text-[9.5px] tabular-nums text-muted" title={`Tatum Data API · ${valuation.rate.source} · ${valuation.rate.timestamp}`}>
+                        ≈ {formatMinor(valuation.valueMinor, data.baseCurrency)} at Tatum rate
+                      </span>
+                    ) : null}
+                  </span>
                 </div>
-              ))}
+                );
+              })}
             </div>
-            <p className="mt-4 border-t border-white/[0.07] pt-3 text-[9.5px] leading-relaxed text-muted/70">No currency conversion is applied without a sourced rate.</p>
+            <p className="mt-4 border-t border-white/[0.07] pt-3 text-[9.5px] leading-relaxed text-muted/70">Other currencies are valued only with a sourced Tatum Data API rate, for reference — never added to safe-to-move.</p>
           </Card>
         </div>
       </div>
+
+      {spend.alerts.length > 0 ? (
+        <Card className="border-amber/20">
+          <div className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="flex items-center gap-2 text-[10.5px] uppercase tracking-[0.13em] text-amber">
+                <CircleAlert className="h-3.5 w-3.5" /> Outside what you told LANDED to hold
+              </p>
+              <ul className="mt-2 space-y-1">
+                {spend.alerts.slice(0, 3).map((alert) => (
+                  <li key={alert.key} className="text-[12.5px] text-cream">
+                    {alert.title} <span className="text-[10.5px] text-muted">— remembered: “{alert.memorySummary}”</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <Link href="/app/spending" className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-amber/30 px-4 text-[12px] text-amber transition hover:bg-amber/[0.08]">
+              Open Spend Watch <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+        </Card>
+      ) : null}
 
       <div className="grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
         <Card>

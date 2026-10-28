@@ -106,6 +106,18 @@ A lesson confirmed once is still a hypothesis about the future. So every outcome
 
 When a move settles on Sui, the user can paste the digest. LANDED reads it through Tatum's Sui RPC (`sui_getTransactionBlock` with balance changes and effects), shows the settlement status, balance changes and gas, and fills the facts that are in the decision's currency. On save, the server reads the digest again rather than trusting the browser's claim: only a successful transaction can mark an outcome `onchain_verified`, and lessons drafted from it carry `verified_onchain` evidence. Tatum is what turns "the user says it arrived" into "the chain says it settled".
 
+## Total Recall means a new phone, not a new you
+
+The first version derived each user's Walrus namespace from a database row id. That quietly broke the point of portable memory: reinstall the app, get a new id, lose your past. The namespace now comes from the sign-in (normalized, hashed), so a fresh install recalls the same memories. **Restore from Walrus** asks the relayer to re-index its blobs, recalls LANDED's own self-describing lesson texts, and rebuilds the ledger; because the typed rule travels inside the text, a recovered lesson changes advice immediately. A separate count from the relayer's own inventory (`listMemories`) checks that "confirmed" really means stored.
+
+## Scores, preferences, and reasoning
+
+The hackathon brief says memory should keep scores, preferences, and reasoning. LANDED maps them literally. Preferences are the typed rules you approve. Scores are each lesson's track record. Reasoning is an opt-in decision journal: every answer's question, advice and reason, written to its own namespace so it can be recalled ("what did you tell me last time?") but can never act as a rule.
+
+## Tatum Data API: a rate, or nothing
+
+LANDED refused to convert currencies because it had no sourced rate. Tatum's Data API supplies one. SUI and stablecoin balances, and Sui gas on an outcome, now show a dollar value with the rate's source and time. The rate is kept as the decimal string Tatum returned and applied with integer arithmetic, and the converted value is never counted as spendable cash.
+
 ## What is intentionally absent
 
 - **No bank connection.** Balances are self-reported, CSV-imported, or verified onchain. A fake "connected" state would undermine every number downstream.
@@ -126,6 +138,7 @@ The test suite covers the parts that are easy to hand-wave:
 - cross-user denial for decisions, replay, outcomes, memories, and exclusions using a throwaway database
 - recurring-charge detection (including not mistaking groceries for a subscription), memory-only alerts, newest-rule-wins, purchase checks against a learned limit
 - track-record verdicts for cash and route rules, bounded confidence updates, and the needs-review threshold
+- BigInt rate conversion and rounding; portable lesson and journal text round trips, including corrupted rules
 
 The authorization test is an integration test on purpose. Cross-user isolation is a property of the `where` clauses; mocking Prisma away would test nothing.
 

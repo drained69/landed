@@ -10,7 +10,7 @@ export async function setConsent(userId: string, consentType: string, granted: b
 
 export async function getConsents(userId: string) {
   const rows = await prisma.consent.findMany({ where: { userId } });
-  const types = ["community_route_intelligence", "anonymous_research", "product_updates"];
+  const types = ["decision_journal", "community_route_intelligence", "anonymous_research", "product_updates"];
   return types.map((type) => ({
     consentType: type,
     granted: rows.find((r) => r.consentType === type)?.granted ?? false,
