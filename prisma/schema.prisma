@@ -1,0 +1,421 @@
+// LANDED — financial context, outcome intelligence, and persistent memory.
+// Amounts are stored as integer minor units. Never floats.
+// SQLite is the zero-config local database; the schema is PostgreSQL-portable
+// (change the datasource provider and regenerate for a managed Postgres deploy).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                    String   @id @default(cuid())
+  email                 String   @unique
+  name                  String
+  passwordHash          String?
+  isDemo                Boolean  @default(false)
+  preferredCurrency     String   @default("USD")
+  locale                String   @default("en-US")
+  safetyBufferMinor     Int      @default(10000)
+  mainObjective         String?
+  riskPosture           String   @default("balanced") // cautious | balanced | flexible
+  onboardingComplete    Boolean  @default(false)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  sessions              Session[]
+  accounts              FinancialAccount[]
+  transactions          Transaction[]
+  commitments           Commitment[]
+  savingsGoals          SavingsGoal[]
+  routes                PaymentRoute[]
+  decisions             FinancialDecision[]
+  movements             MoneyMovement[]
+  memories              MemoryRecord[]
+  consents              Consent[]
+  routeObservations     RouteObservation[]
+  memoryEvidence        MemoryEvidence[]
+  importBatches         ImportBatch[]
+  auditEvents           AuditEvent[]
+
+  @@index([createdAt])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model FinancialAccount {
+  id                 String    @id @default(cuid())
+  userId             String
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name               String
+  accountType        String // bank | cash | wallet | stablecoin | savings
+  provider           String?
+  currency           String
+  balanceMinor       Int       @default(0)
+  balanceSource      String    @default("manual") // manual | csv | onchain | demo
+  verificationStatus String    @default("unverified") // unverified | user_confirmed | verified_onchain
+  isLiquid           Boolean   @default(true)
+  includeInSafeToMove Boolean  @default(true)
+  walletAddress      String?
+  chain              String?
+  lastSyncedAt       DateTime?
+  isSynthetic        Boolean   @default(false)
+  notes              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  transactions       Transaction[]
+
+  @@unique([userId, name])
+  @@index([userId, currency])
+}
+
+model Transaction {
+  id                 String           @id @default(cuid())
+  userId             String
+  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId          String?
+  account            FinancialAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  amountMinor        Int // always positive; direction carries the sign
+  currency           String
+  direction          String // in | out
+  category           String           @default("uncategorized")
+  merchant           String?
+  description        String?
+  timestamp          DateTime
+  source             String           @default("manual") // manual | csv | onchain | demo | system
+  status             String           @default("posted") // pending | posted | failed | void
+  transactionDigest  String?
+  verificationStatus String           @default("user_confirmed") // unverified | user_confirmed | verified_onchain
+  dedupeKey          String?
+  metadata           String?
+  isSynthetic        Boolean          @default(false)
+  createdAt          DateTime         @default(now())
+
+  @@unique([userId, dedupeKey])
+  @@index([userId, timestamp])
+  @@index([userId, accountId])
+  @@index([transactionDigest])
+}
+
+model Commitment {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  amountMinor Int
+  currency    String
+  dueDate     DateTime
+  recurrence  String   @default("none") // none | weekly | monthly | yearly
+  priority    String   @default("essential") // essential | important | discretionary
+  status      String   @default("upcoming") // upcoming | paid | skipped
+  autoPay     Boolean  @default(false)
+  notes       String?
+  isSynthetic Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId, dueDate])
+  @@index([userId, status])
+}
+
+model SavingsGoal {
+  id                     String   @id @default(cuid())
+  userId                 String
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name                   String
+  targetMinor            Int
+  currentMinor           Int      @default(0)
+  currency               String
+  targetDate             DateTime?
+  monthlyContributionMinor Int    @default(0)
+  priority               String   @default("important")
+  status                 String   @default("active") // active | achieved | paused
+  isSynthetic            Boolean  @default(false)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([userId, status])
+}
+
+model PaymentRoute {
+  id                String             @id @default(cuid())
+  userId            String
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name              String
+  providerOrMethod  String
+  originCurrency    String
+  destinationCurrency String
+  payoutMethod      String // bank_deposit | wallet | cash_pickup | mobile_money | instant
+  routeType         String // onchain | bank | remittance | mobile_money | cash
+  description       String?
+  isActive          Boolean            @default(true)
+  isSynthetic       Boolean            @default(false)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  quotes            RouteQuote[]
+  movements         MoneyMovement[]
+  observations      RouteObservation[]
+
+  @@index([userId, originCurrency, destinationCurrency])
+}
+
+model RouteQuote {
+  id                    String       @id @default(cuid())
+  routeId               String
+  route                 PaymentRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  sendAmountMinor       Int
+  feeMinor              Int          @default(0)
+  networkFeeMinor       Int          @default(0)
+  exchangeRate          String       @default("1")
+  expectedReceivedMinor Int
+  estimatedDeliveryHours Int
+  source                String       @default("user_entered") // user_entered | provider_api | demo
+  quotedAt              DateTime     @default(now())
+  expiresAt             DateTime?
+  evidenceQuality       String       @default("user_reported") // user_reported | provider_quote | verified_outcome
+  isSynthetic           Boolean      @default(false)
+  notes                 String?
+  createdAt             DateTime     @default(now())
+
+  @@index([routeId, quotedAt])
+}
+
+model FinancialDecision {
+  id                 String   @id @default(cuid())
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  decisionType       String // send | save | spend | affordability
+  status             String   @default("advised") // advised | accepted | followed | declined | completed | evaluated
+  objective          String
+  requestedAmountMinor Int?
+  currency           String   @default("USD")
+  inputSnapshot      String // JSON
+  calculationVersion String
+  recommendedAction  String // JSON
+  baselineAction     String // JSON
+  assumptions        String // JSON
+  memoryReferences   String // JSON array of memory ids / blob ids
+  memoryMode         String   @default("live") // live | baseline | replay
+  predictedOutcome   String // JSON
+  confidence         Float   @default(0.5)
+  asOf               DateTime @default(now())
+  followedAt         DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  movements          MoneyMovement[]
+  outcomes           DecisionOutcome[]
+  memories           MemoryRecord[]
+
+  @@index([userId, createdAt])
+  @@index([userId, status])
+}
+
+model MoneyMovement {
+  id                 String             @id @default(cuid())
+  userId             String
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  decisionId         String?
+  decision           FinancialDecision? @relation(fields: [decisionId], references: [id], onDelete: SetNull)
+  routeId            String?
+  route              PaymentRoute?      @relation(fields: [routeId], references: [id], onDelete: SetNull)
+  amountMinor        Int
+  currency           String
+  destinationCurrency String?
+  recipientLabel     String?
+  status             String             @default("planned") // planned | pending | settled | failed | cancelled
+  actualFeeMinor     Int?
+  actualReceivedMinor Int?
+  deliveryHours      Int?
+  completedAt        DateTime?
+  evidenceType       String             @default("user_confirmed") // user_confirmed | onchain_verified | demo
+  transactionDigest  String?
+  onchainStatus      String? // success | failure | pending
+  notes              String?
+  isSynthetic        Boolean            @default(false)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  outcomes           DecisionOutcome[]
+  routeObservations  RouteObservation[]
+
+  @@index([userId, createdAt])
+  @@index([userId, status])
+}
+
+model DecisionOutcome {
+  id                  String   @id @default(cuid())
+  decisionId          String
+  decision            FinancialDecision @relation(fields: [decisionId], references: [id], onDelete: Cascade)
+  movementId          String?
+  movement            MoneyMovement? @relation(fields: [movementId], references: [id], onDelete: SetNull)
+  observedResult      String // JSON
+  predictionError     String // JSON
+  outcomeStatus       String // achieved | partial | missed | inconclusive
+  objectiveAchieved   Boolean  @default(false)
+  shortfallOccurred   Boolean  @default(false)
+  confirmedCauses     String? // JSON
+  hypotheses          String? // JSON
+  userFeedback        String? // JSON
+  metricJson          String?
+  evaluatedAt         DateTime @default(now())
+  createdAt           DateTime @default(now())
+
+  @@unique([decisionId])
+  @@index([evaluatedAt])
+}
+
+model MemoryRecord {
+  id                  String   @id @default(cuid())
+  userId              String
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  decisionId          String?
+  decision            FinancialDecision? @relation(fields: [decisionId], references: [id], onDelete: SetNull)
+  category            String // financial_pattern | preference | outcome | correction | route_intelligence
+  summary             String
+  lesson              String
+  structuredRule      String? // JSON, typed and authoritative
+  originalExpectation String?
+  actualOutcome       String?
+  conditions          String? // JSON
+  evidenceRefs        String? // JSON
+  confidence          Float   @default(0.5)
+  evidenceQuality     String   @default("user_confirmed") // verified_onchain | user_confirmed | single_observation | hypothesis
+  verificationStatus  String   @default("hypothesis") // verified | user_confirmed | hypothesis | rejected
+  namespace           String?
+  walrusBlobId        String?
+  jobId               String?
+  writeStatus         String   @default("pending") // pending | writing | confirmed | failed | blocked | superseded
+  writeError          String?
+  walrusOwner         String?
+  supersededBy        String?
+  excluded            Boolean  @default(false)
+  exclusionReason     String?
+  source              String   @default("local_rehearsal") // walrus | local_rehearsal
+  isSynthetic         Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  confirmedAt         DateTime?
+
+  evidence            MemoryEvidence[]
+
+  @@index([userId, createdAt])
+  @@index([userId, category])
+  @@index([userId, writeStatus])
+  @@index([walrusBlobId])
+}
+
+// Track record: each evaluated outcome judges the lessons that shaped its decision.
+model MemoryEvidence {
+  id               String       @id @default(cuid())
+  userId           String
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  memoryId         String
+  memory           MemoryRecord @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+  decisionId       String
+  outcomeId        String?
+  verdict          String // held | contradicted | inconclusive
+  reason           String
+  confidenceBefore Float
+  confidenceAfter  Float
+  createdAt        DateTime     @default(now())
+
+  @@unique([memoryId, decisionId])
+  @@index([userId, createdAt])
+  @@index([memoryId])
+}
+
+model RouteObservation {
+  id                    String   @id @default(cuid())
+  userId                String
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  routeId               String
+  route                 PaymentRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  decisionId            String?
+  movementId            String?
+  movement              MoneyMovement? @relation(fields: [movementId], references: [id], onDelete: SetNull)
+  corridor              String // USD>USD
+  payoutMethod          String
+  sendAmountMinor       Int
+  expectedCostMinor     Int
+  actualCostMinor       Int
+  expectedReceivedMinor Int
+  actualReceivedMinor   Int
+  expectedDeliveryHours Int
+  actualDeliveryHours   Int
+  consentToAggregate    Boolean  @default(false)
+  contributorHash       String
+  createdAt             DateTime @default(now())
+
+  @@index([routeId, corridor])
+  @@index([userId, createdAt])
+}
+
+model CommunityRouteStatistic {
+  id                      String   @id @default(cuid())
+  routeGroupKey           String   @unique // corridor|payout|provider
+  observationCount        Int      @default(0)
+  contributorCount        Int      @default(0)
+  observedCostStatistics  String? // JSON
+  observedDeliveryStatistics String? // JSON
+  confidence              Float   @default(0)
+  lastCalculatedAt        DateTime @default(now())
+
+  @@index([lastCalculatedAt])
+}
+
+model Consent {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  consentType String // community_route_intelligence | anonymous_research | product_updates
+  granted     Boolean  @default(false)
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, consentType])
+}
+
+model ImportBatch {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  filename      String
+  fileHash      String
+  rowCount      Int
+  importedCount Int
+  skippedCount  Int
+  createdAt     DateTime @default(now())
+
+  @@unique([userId, fileHash])
+  @@index([userId, createdAt])
+}
+
+model AuditEvent {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  type      String
+  entity    String?
+  entityId  String?
+  payload   String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([type])
+}

@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "landed-prod",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "exec",
+        "next",
+        "start",
+        "-p",
+        "3100"
+      ],
+      "port": 3100
+    }
+  ]
+}

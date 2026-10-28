@@ -1,36 +1,145 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# LANDED
 
-## Getting Started
+**Money that remembers.**
 
-First, run the development server:
+LANDED is a consumer finance app that answers one question honestly: *what is actually safe to move right now?* It combines cleared balances, upcoming bills, savings goals, expected income, and route quotes; ranks payment routes on the amount that actually lands; watches subscriptions and category spending against limits the user taught it; then records what happened and turns confirmed outcomes into persistent, typed memory on Walrus — memory that keeps a track record and loses confidence when it turns out to be wrong.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+Built for the **Tatum × Walrus Total Recall Hackathon**. The loop is real: an outcome can become a lesson, a confirmed lesson changes a future recommendation, and the changed recommendation is visible in a replay against the no-memory baseline.
+
+```
+context → deterministic decision → user follows → real outcome
+   ↑                                                    │
+   └──── typed lesson ← user confirms ← proposal ←──────┘
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## What is real in this build
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Area | State |
+| --- | --- |
+| Financial engine | Real. Deterministic integer-minor-unit arithmetic, 45-day cash-flow simulation, route ranking. No LLM math. |
+| Demo data | **Synthetic and labelled everywhere.** 5 accounts, 53 transactions, 5 bills, 4 routes, 5 decisions, 21 lessons. |
+| Spend Watch | Real. Deterministic recurring-charge detection and category pacing. Alerts come only from user-confirmed `SPEND_LIMIT` / `SUBSCRIPTION_WATCH` memories. |
+| Memory track record | Real. Every recorded outcome judges the lessons behind its decision (held / contradicted / inconclusive) and moves their confidence, which changes how strongly they act next time. |
+| Tatum Sui | Real JSON-RPC integration (`sui-mainnet.gateway.tatum.io`) when `TATUM_API_KEY` is set: wallet balances and history, and transaction evidence (status, balance changes, gas) that fills and verifies outcomes. Without it: HTTP 503 and an explicit `not configured` state. No public-RPC substitution. |
+| Walrus Memory | Real `@mysten-incubation/memwal` writes and recalls when `MEMWAL_PRIVATE_KEY` + `MEMWAL_ACCOUNT_ID` are set. A record is only `confirmed` when the relayer returns a blob ID. |
+| Confirmed Mainnet memories | **0 in this checkout** — credentials are not present. The app reports 0 and labels all 21 lessons as local rehearsal. Nothing is faked. |
+| AI explanation layer | Optional OpenAI-compatible endpoint. Arithmetic, ranking, memory rules, and writes never depend on it. |
+| Bank connections | None. Balances are self-reported, CSV-imported, or verified onchain through Tatum. |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The seeded live decision is deliberately instructive:
 
-## Learn More
+- **No-memory baseline:** send **$300.00**.
+- **With recalled memory:** send **$150.00 now, $150.00 after income** (50% single-move cap + route adjustment).
+- Replay shows the two arms side by side using **the same input snapshot** and a cutoff clamped to the decision time.
 
-To learn more about Next.js, take a look at the following resources:
+Spend Watch carries a second, everyday example:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **No memory:** 0 alerts. Averages and detected patterns are shown as proposals only.
+- **With memory:** *Streaming bundle charged $21.99 — you approved $18.00* and *Dining is over your $120.00 limit*, each naming the memory that raised it.
+- Asking *“Can I spend $60 on dining tonight?”* returns: cash flow allows it, your remembered limit does not.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Quickstart
 
-## Deploy on Vercel
+```bash
+pnpm install
+cp .env.example .env
+pnpm setup        # prisma generate + db push + seed
+pnpm dev
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Open <http://localhost:3000> and choose **Open demo account** (or sign in with `demo@landed.app` / `landed-demo-2026`).
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+To reset the demo to its pristine, deterministic state:
+
+```bash
+pnpm db:reset
+```
+
+### Verification
+
+```bash
+pnpm typecheck
+pnpm lint
+pnpm test          # 53 tests: money, cash flow, routes, outcomes, replay cutoff, cross-user auth, Spend Watch, track record
+pnpm build
+```
+
+## Walk through the loop
+
+1. **Overview** — safe-to-move is `$150.00`, with the single-move cap attributed to a recalled lesson. Projected low point, protected bills, and buffer are all visible.
+2. **Plan a move** — ask to send `$300`. LANDED returns `$150 now / $150 after income`, compares routes, and shows which memories changed the answer.
+3. **Decision detail** — `I followed this` creates a movement. `Record real outcome` captures fee, received amount, delivery hours, buffer after, and whether bills were covered.
+4. **Advice Autopsy** — predicted vs observed, confirmed causes vs hypotheses, and draft lessons. Nothing becomes memory automatically.
+5. **Confirm a lesson** — the user approves the wording and typed rule. Only then can it be written to Walrus.
+6. **Walrus write** — with credentials, the app waits for a blob ID and stores it. Without credentials the status is `blocked`, not `confirmed`.
+7. **Learning replay** — baseline vs memory-informed action on the identical snapshot. A future cutoff is clamped to the decision time.
+8. **Memory** — ledger with category, status, blob ID, decision, confirmation time, verification and consent controls.
+9. **Track record** — lessons tested by later outcomes: verdicts, reasons, and confidence before → after. A lesson that applied and still failed loses confidence and is flagged for review.
+10. **Spend Watch** — recurring charges and category pace. Remember a limit or approve a price; from then on it alerts, across sessions, and names the memory behind every alert.
+11. **Verify with Tatum** — when recording an outcome, paste a Sui digest. LANDED reads it through Tatum, fills the facts in the decision's currency, and re-verifies it server-side before marking the outcome onchain-verified.
+
+## How memory changes a decision
+
+Lessons are stored twice, deliberately:
+
+- **Authoritative typed rule** in the user's database row (`AMOUNT_CAP`, `RESERVE_COMMITMENT`, `EXCLUDE_EXPECTED_INCOME`, `PAYOUT_DEDUCTION`, `ROUTE_PENALTY`, `ROUTE_PREFERENCE`, `BUFFER_FLOOR`, `SPLIT_TRANSFER`, `DELAY_REMAINDER`, `SPEND_LIMIT`, `SUBSCRIPTION_WATCH`).
+- **Portable self-describing text** on Walrus, including the rule JSON and scope, so a recalled blob can be understood without this app.
+
+On recall, the database rule wins; the Walrus text is a fallback. That keeps memory usable across tools while preventing a malformed blob from silently rewriting financial logic.
+
+Memory is also **accountable**. Each outcome writes a `MemoryEvidence` verdict for every lesson that shaped the decision. Held lessons gain confidence (toward 0.95), contradicted ones lose it (toward 0.10), and confidence already weights how strongly a rule acts in the cash-flow and route engines — so a lesson that keeps working gets more say, and one that failed gets less, without anything being deleted.
+
+Per-user namespace: `sha256("landed:" + userId)` rendered as `landed-<24 hex>`, derived server-side. Every database query is scoped by `userId`; Walrus is never the authorization boundary.
+
+## Architecture
+
+- **Next.js 16.4 App Router**, React 19, TypeScript, Tailwind v4, Recharts, Lucide.
+- **Prisma 6 + SQLite** locally; schema is PostgreSQL-portable (see [docs/setup.md](docs/setup.md)).
+- Cookie sessions, scrypt password hashing, hashed tokens, SameSite cookies, origin checks on writes, rate limits.
+- API handlers centralize auth, validation, error mapping, and ownership checks.
+- **No floating-point money.** Parsing, rounding, caps, reserves, and comparisons use integer minor units.
+
+More detail: [architecture](docs/architecture.md) · [setup and deployment](docs/setup.md) · [demo script](docs/demo-script.md) · [technical blog](docs/blog.md).
+
+## Commands
+
+| Command | Purpose |
+| --- | --- |
+| `pnpm dev` | Development server |
+| `pnpm build` / `pnpm start` | Production build / serve |
+| `pnpm setup` | Generate client, push schema, seed demo |
+| `pnpm db:reset` | Force-reset local DB and reseed |
+| `pnpm demo:snapshot` | Print the demo account's headline numbers and Spend Watch state |
+| `pnpm walrus:verify` | Check credentials/relayer, list confirmed blob IDs, require 10 confirmed by default |
+| `pnpm walrus:verify --min=0` | Same checks without the 10-write minimum |
+| `pnpm walrus:backfill --dry-run` | Show lessons eligible for a Walrus retry |
+| `pnpm walrus:backfill` | Retry pending/failed/blocked non-synthetic lessons |
+| `pnpm walrus:backfill --include-synthetic` | Explicit opt-in for demo lessons (public, permanent blobs) |
+
+## Deployment
+
+A `Dockerfile`, `.dockerignore`, and `railway.json` are included. SQLite needs a persistent volume mounted at `/app/prisma`; for a managed deployment, switch Prisma to PostgreSQL as described in [docs/setup.md](docs/setup.md). Server-only keys must never be prefixed with `NEXT_PUBLIC_`.
+
+## Honest limitations
+
+- Demo balances and history are synthetic; they are labelled in the UI, the export, and every seeded memory.
+- No confirmed Walrus Mainnet writes exist in this checkout because no credentials are configured. The app does not count local rehearsal lessons as writes.
+- There is no live bank or payout-provider integration. Route quotes are seeded or user-entered and labelled accordingly.
+- FX conversion is deliberately absent unless a sourced rate is supplied. LANDED shows per-currency balances instead of inventing a rate.
+- Advice Autopsy separates observed facts from hypotheses. A single outcome is never presented as proof of causality.
+
+## Hackathon requirement map
+
+| Requirement | Implementation |
+| --- | --- |
+| Genuinely recalled memory changes advice | Seeded `AMOUNT_CAP` + route preference move `$300` → `$150 now / $150 later`; every applied rule carries its memory ID |
+| ≥10 confirmed Walrus Mainnet memories | Ready via `pnpm walrus:backfill`; `pnpm walrus:verify` enforces the count. **Blocked here: credentials absent** |
+| Memory ID, category, status, blob, decision, timestamp | Memory ledger and `/api/memories/verify` |
+| Real Tatum Sui reads | `sui_getLatestCheckpointSequenceNumber`, balances, owned objects, transaction blocks through Tatum only; digests re-verified server-side before an outcome is `onchain_verified` |
+| Consumer Finance track: spend tracking, subscriptions with learned limits | Spend Watch: recurring-charge detection, category pacing, `SPEND_LIMIT` / `SUBSCRIPTION_WATCH` memories, memory-only alerts, Ask LANDED purchase checks |
+| Apps that learn over time | Memory track record: outcome verdicts per lesson, bounded confidence updates that change future rule strength, needs-review flag |
+| Advice Autopsy | Predicted vs observed, errors, confirmed causes, hypotheses, draft lessons |
+| Learning Replay | Identical snapshot, baseline vs informed, memory cutoff clamped to decision time |
+| No fabricated confirmations | `confirmed` requires a returned blob ID / onchain digest; otherwise `blocked`, `failed`, or `unverified` |
+| Integer money, deterministic math | `src/lib/money.ts`, `src/server/engine/*`; tests cover parsing, caps, reserves, ranking |
+| Per-user authorization, server-side keys | Every query scoped by `userId`; tests cover cross-user denial; keys server-only |
