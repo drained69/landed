@@ -128,7 +128,7 @@ More detail: [architecture](docs/architecture.md) · [setup and deployment](docs
 
 ## Deployment
 
-A `Dockerfile`, `.dockerignore`, and `railway.json` are included. SQLite needs a persistent volume mounted at `/app/prisma`; for a managed deployment, switch Prisma to PostgreSQL as described in [docs/setup.md](docs/setup.md). Server-only keys must never be prefixed with `NEXT_PUBLIC_`.
+A `Dockerfile`, `.dockerignore`, and `railway.json` are included. SQLite needs a persistent volume mounted at `/app/data` (on Railway also set `RAILWAY_RUN_UID=0`); for a managed deployment, switch Prisma to PostgreSQL as described in [docs/setup.md](docs/setup.md). Server-only keys must never be prefixed with `NEXT_PUBLIC_`.
 
 ## Honest limitations
 

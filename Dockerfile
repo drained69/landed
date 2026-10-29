@@ -19,7 +19,9 @@ FROM base AS runner
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
-ENV DATABASE_URL="file:./dev.db"
+# The database lives in its own directory so a volume can be mounted there
+# without hiding prisma/schema.prisma and the seed script.
+ENV DATABASE_URL="file:/app/data/landed.db"
 
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/next.config.ts ./next.config.ts
@@ -31,13 +33,14 @@ COPY --from=builder /app/src ./src
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
 COPY --from=builder /app/scripts/docker-start.sh ./scripts/docker-start.sh
 
-RUN chmod +x ./scripts/docker-start.sh && chown -R node:node /app
+RUN mkdir -p /app/data && chmod +x ./scripts/docker-start.sh && chown -R node:node /app
 USER node
 
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD wget -q -O /dev/null http://127.0.0.1:3000/ || exit 1
 
-# SQLite needs a persistent volume at /app/prisma. For PostgreSQL, replace the
-# schema provider and run migrations in a release step instead.
+# SQLite needs a persistent volume at /app/data. Platforms that mount volumes
+# as root (Railway) need the container to run as root: RAILWAY_RUN_UID=0.
+# For PostgreSQL, replace the schema provider and run migrations in a release step.
 CMD ["sh", "scripts/docker-start.sh"]

@@ -132,13 +132,13 @@ Health-relevant endpoints:
 ```bash
 docker build -t landed .
 docker run --rm -p 3000:3000 \
-  -v landed-data:/app/prisma \
+  -v landed-data:/app/data \
   -e LANDED_SEED_DEMO=true \
   --env-file .env \
   landed
 ```
 
-The image applies the schema (`prisma db push`) before `next start`. With `LANDED_SEED_DEMO=true` the labelled synthetic demo account is created **once**: on later boots the seed sees the demo user and stops (`--if-missing`), so restarts never rebuild it with new lesson ids that a later Walrus backfill would write again as duplicates. Instead, the demo's **clock is rolled forward**: on boot and on every demo sign-in (at most every six hours), all of its dates shift by the time since it was seeded, so "rent due in eleven days" and the $300 → $150 story read the same on judging day. Ids and Walrus blob ids never change. SQLite lives at `/app/prisma/dev.db`, so the volume is required for persistence.
+The image applies the schema (`prisma db push`) before `next start`. With `LANDED_SEED_DEMO=true` the labelled synthetic demo account is created **once**: on later boots the seed sees the demo user and stops (`--if-missing`), so restarts never rebuild it with new lesson ids that a later Walrus backfill would write again as duplicates. Instead, the demo's **clock is rolled forward**: on boot and on every demo sign-in (at most every six hours), all of its dates shift by the time since it was seeded, so "rent due in eleven days" and the $300 → $150 story read the same on judging day. Ids and Walrus blob ids never change. SQLite lives at `/app/data/landed.db` (its own directory, so the volume never hides the Prisma schema or seed), and the volume is required for persistence.
 
 Do not bake `.env` into the image. Pass secrets at runtime. Docker's `--env-file` keeps surrounding quotes as literal characters while Next.js and Prisma expect raw values; `scripts/docker-start.sh` strips matching quotes from the variables LANDED reads, so both quoted and unquoted `.env` files work.
 
@@ -149,7 +149,7 @@ Do not bake `.env` into the image. Pass secrets at runtime. Docker's `--env-file
 1. Create a Railway project from this repository.
 2. Add the variables from `.env` in the Railway dashboard.
 3. Set `LANDED_SEED_DEMO=true` if you want the labelled synthetic demo. It is created on the first boot only; leaving the variable on is safe. To reset the demo deliberately, run `pnpm db:seed` (and do not backfill the old demo lessons again afterwards).
-4. Attach a volume mounted at `/app/prisma` if you keep SQLite.
+4. Attach a volume mounted at `/app/data` if you keep SQLite, and set `RAILWAY_RUN_UID=0`: Railway mounts volumes as root and the image otherwise runs as the unprivileged `node` user, which could not write the database.
 5. Deploy. Set the public domain in `NEXT_PUBLIC_APP_URL`.
 
 For a multi-instance or durable production deployment, use PostgreSQL instead of SQLite.
