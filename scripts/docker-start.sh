@@ -26,8 +26,10 @@ done
 ./node_modules/.bin/prisma db push --skip-generate
 
 if [ "${LANDED_SEED_DEMO:-false}" = "true" ]; then
-  echo "LANDED_SEED_DEMO=true — seeding the labelled synthetic demo…"
-  ./node_modules/.bin/tsx prisma/seed.ts
+  # Seeds once. Reseeding on every boot would mint new lesson ids and lead a
+  # later Walrus backfill to write duplicate, undeletable memories.
+  echo "LANDED_SEED_DEMO=true — seeding the labelled synthetic demo if it is missing…"
+  ./node_modules/.bin/tsx prisma/seed.ts --if-missing
 fi
 
 exec ./node_modules/.bin/next start

@@ -15,6 +15,7 @@ import { buildDecisionInput } from "../src/server/services/financial";
 import { decide, ENGINE_VERSION } from "../src/server/engine/decision";
 import { createJournalEntry, generateDecision, recordOutcome } from "../src/server/services/decisions";
 import { flushLessonUpdates, listActiveRuleMemories, writeMemoryToWalrus } from "../src/server/services/memory";
+import { refreshDemoClock } from "../src/server/services/demo";
 
 const DEMO_EMAIL = "demo@landed.app";
 const DEMO_PASSWORD = "landed-demo-2026";
@@ -26,6 +27,15 @@ function atDay(base: Date, monthsAgo: number, day: number): Date {
 
 async function main() {
   const existing = await prisma.user.findUnique({ where: { email: DEMO_EMAIL } });
+  // Deploys run the seed on every boot. Re-creating the demo user would give
+  // every lesson a new id, and a later backfill would write duplicates to
+  // Walrus, which cannot be deleted. --if-missing seeds once and then stops.
+  if (existing && process.argv.includes("--if-missing")) {
+    // Keep the existing demo current instead: same ids, dates rolled forward.
+    const { shiftedMs } = await refreshDemoClock(existing.id);
+    console.log(`LANDED demo already present (${DEMO_EMAIL}); not reseeding.${shiftedMs > 0 ? ` Rolled its dates forward ${(shiftedMs / 3_600_000).toFixed(1)}h.` : ""} Use pnpm db:seed to reset it deliberately.`);
+    return;
+  }
   if (existing) {
     await prisma.user.delete({ where: { id: existing.id } });
   }
@@ -37,6 +47,7 @@ async function main() {
       name: "Maya Chen",
       passwordHash: hashPassword(DEMO_PASSWORD),
       isDemo: true,
+      demoAnchorAt: now,
       preferredCurrency: "USD",
       locale: "en-US",
       safetyBufferMinor: 10000,

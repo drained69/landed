@@ -10,6 +10,7 @@ import { rankRoutes } from "@/server/engine/routes";
 import { cashFlowInputFromSnapshot } from "./financial";
 import { getSpendWatch, matchCategory } from "./spending";
 import { checkPurchase } from "@/server/engine/spending";
+import { explainDecision, type Explanation } from "./explain";
 
 export interface AskResponse {
   kind: "decision" | "answer" | "learning" | "routes" | "clarify";
@@ -19,6 +20,9 @@ export interface AskResponse {
   memories?: { id: string; summary: string; blobId: string | null; confidence: number }[];
   suggestions?: string[];
   warning?: string | null;
+  /** Optional plain-language rewrite of computed facts; never a source of numbers. */
+  explanation?: Explanation | null;
+  explanationNote?: string | null;
 }
 
 const AMOUNT_RE = /(?:\$|usd\s*)?(\d[\d,]*(?:\.\d{1,2})?)\s*(?:dollars?|usd)?/i;
@@ -287,8 +291,21 @@ export async function askLanded(userId: string, message: string): Promise<AskRes
     }
   }
 
+  const plain = await explainDecision({
+    question: message.slice(0, 400),
+    advice: [`${result.result.action.headline}.`, limitNote].filter(Boolean).join(" "),
+    baselineAdvice: result.result.baselineAction.headline,
+    reasons: [result.result.action.rationale, ...result.result.action.adjustments.map((a) => `${a.label}: ${a.detail}`)].slice(0, 6),
+    memoriesUsed: [
+      ...(limitMemory ? [limitMemory.summary] : []),
+      ...result.retrieval.memories.map((m) => m.summary),
+    ].slice(0, 6),
+  });
+
   return {
     kind: "decision",
+    explanation: plain.explanation,
+    explanationNote: plain.note,
     message: [`${result.result.action.headline}.`, limitNote, result.result.action.rationale].filter(Boolean).join(" "),
     decision: result,
     cards: [

@@ -109,7 +109,9 @@ AI_API_KEY="..."
 AI_MODEL="..."
 ```
 
-The AI layer receives only a compact, server-built explanation request. It cannot compute amounts, rank routes, confirm outcomes, or write memory. With no configuration, deterministic explanations are used.
+Any OpenAI-compatible `/chat/completions` endpoint works. When configured, Ask LANDED adds an **In plain words** paragraph to decision answers. The model receives only a compact, server-built set of facts (the question, the computed advice, the baseline, the reasons and the memories used) and is told to rewrite them, not compute. LANDED then checks the reply: **if it contains any number the facts do not contain, it is discarded** and the computed answer stands alone with a note. The layer cannot compute amounts, rank routes, confirm outcomes, or write memory, and a timeout or provider error never affects the answer. With no configuration nothing is called and the deterministic answer is shown.
+
+Privacy: when enabled, those facts (amounts and lesson summaries, no account identifiers) are sent to the provider you configure.
 
 ## 5. Production build
 
@@ -136,7 +138,7 @@ docker run --rm -p 3000:3000 \
   landed
 ```
 
-The image applies the schema (`prisma db push`) before `next start`. Set `LANDED_SEED_DEMO=true` on the first run to create the labelled synthetic demo account; omit it afterward so restarts do not delete and rebuild that data. SQLite lives at `/app/prisma/dev.db`, so the volume is required for persistence.
+The image applies the schema (`prisma db push`) before `next start`. With `LANDED_SEED_DEMO=true` the labelled synthetic demo account is created **once**: on later boots the seed sees the demo user and stops (`--if-missing`), so restarts never rebuild it with new lesson ids that a later Walrus backfill would write again as duplicates. Instead, the demo's **clock is rolled forward**: on boot and on every demo sign-in (at most every six hours), all of its dates shift by the time since it was seeded, so "rent due in eleven days" and the $300 → $150 story read the same on judging day. Ids and Walrus blob ids never change. SQLite lives at `/app/prisma/dev.db`, so the volume is required for persistence.
 
 Do not bake `.env` into the image. Pass secrets at runtime. Docker's `--env-file` keeps surrounding quotes as literal characters while Next.js and Prisma expect raw values; `scripts/docker-start.sh` strips matching quotes from the variables LANDED reads, so both quoted and unquoted `.env` files work.
 
@@ -146,7 +148,7 @@ Do not bake `.env` into the image. Pass secrets at runtime. Docker's `--env-file
 
 1. Create a Railway project from this repository.
 2. Add the variables from `.env` in the Railway dashboard.
-3. Set `LANDED_SEED_DEMO=true` if you want the labelled synthetic demo on first boot. Remove it after the first successful deploy, because the seed replaces the demo user's data on every start.
+3. Set `LANDED_SEED_DEMO=true` if you want the labelled synthetic demo. It is created on the first boot only; leaving the variable on is safe. To reset the demo deliberately, run `pnpm db:seed` (and do not backfill the old demo lessons again afterwards).
 4. Attach a volume mounted at `/app/prisma` if you keep SQLite.
 5. Deploy. Set the public domain in `NEXT_PUBLIC_APP_URL`.
 

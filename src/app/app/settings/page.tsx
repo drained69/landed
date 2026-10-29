@@ -5,6 +5,7 @@ import { memoryConfig, memoryHealth, userNamespace } from "@/server/services/mem
 import { getConsents } from "@/server/services/community";
 import { ratesHealth } from "@/server/services/rates";
 import { SettingsView } from "@/components/SettingsView";
+import { aiConfig } from "@/server/services/explain";
 
 export default async function SettingsPage() {
   const user = await requireUser();
@@ -109,7 +110,7 @@ export default async function SettingsPage() {
           writeReady: walrus.writeReady,
         },
         ai: {
-          configured: Boolean(process.env.AI_BASE_URL && process.env.AI_API_KEY && process.env.AI_MODEL),
+          configured: aiConfig().configured,
           note: "Optional. LANDED's arithmetic, ranking, and memory rules never depend on the AI layer.",
         },
       }}

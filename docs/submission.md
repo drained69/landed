@@ -10,7 +10,7 @@ Track: **Consumer Finance Apps** (Tatum × Walrus Total Recall, submissions clos
 | 2 | Tatum RPC used for onchain data | `src/server/services/tatum.ts` — Sui JSON-RPC (checkpoint, balances, coin metadata, transaction blocks); `src/server/services/rates.ts` — Data API rates | Code ready. **Needs `TATUM_API_KEY`.** |
 | 3 | At least 10 memories stored on Mainnet | `pnpm walrus:backfill` writes the 21 lessons and 5 journal entries; `pnpm walrus:verify` checks the ledger *and* the relayer's own inventory | Blocked on credentials (1) |
 | 4 | Published blog post | Draft: [docs/blog.md](blog.md) | Publish (Medium, Mirror, dev.to, or similar) |
-| 5 | Working demo and public repo | Dockerfile + `railway.json`; demo account seeded on boot with `LANDED_SEED_DEMO=true` | Deploy, record video, push repo |
+| 5 | Working demo and public repo | Dockerfile + `railway.json`; with `LANDED_SEED_DEMO=true` the demo is seeded once and its dates roll forward, so it reads the same on judging day | Deploy, record video, push repo |
 | 6 | Optional: Tatum AI Builder | Not used. LANDED is an indie build; the AI Builder award is a separate $500 path inside ai.tatum.io | Skipped by design |
 
 ## The four pillars in the brief
@@ -27,7 +27,7 @@ Track: **Consumer Finance Apps** (Tatum × Walrus Total Recall, submissions clos
 | Weight | Criterion | Strongest evidence |
 | --- | --- | --- |
 | 30% | Walrus and Tatum integration | Append-only lesson updates on Walrus with newest-wins restore; Spend Watch rules recalled from Walrus with visible coverage; memory changes advice ($300 → $150 now / $150 later; Spend Watch alerts exist only because of memory); Restore from Walrus; relayer inventory check; Tatum RPC settlement verification re-checked server-side; Tatum Data API rates |
-| 30% | Technical quality | Integer money end to end (BigInt rate conversion); 72 tests including Walrus flows against the SDK's MemWalMock; deterministic engines; per-user authorization tested against a real database; no fabricated confirmations |
+| 30% | Technical quality | Integer money end to end (BigInt rate conversion); 80 tests including Walrus flows against the SDK's MemWalMock; deterministic engines; per-user authorization tested against a real database; no fabricated confirmations |
 | 20% | Creativity | Memory that keeps a track record and loses confidence when wrong; alerts only from rules you chose; a journal you can ask about |
 | 20% | Presentation | [Demo script](demo-script.md), [blog](blog.md), README requirement map, honest status labels in the UI |
 

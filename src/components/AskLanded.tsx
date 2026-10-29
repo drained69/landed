@@ -14,6 +14,8 @@ type AskResponse = {
   memories?: AskMemory[];
   suggestions?: string[];
   warning?: string | null;
+  explanation?: { text: string; source: "ai"; model: string } | null;
+  explanationNote?: string | null;
 };
 
 const starters = [
@@ -111,6 +113,14 @@ export function AskLanded() {
                 <div className="space-y-3 animate-rise">
                   <Badge tone={response.kind === "decision" ? "lime" : "muted"}>{response.kind}</Badge>
                   <p className="text-[12.5px] leading-6 text-cream/90">{response.message}</p>
+                  {response.explanation ? (
+                    <div className="rounded-xl border border-sky/20 bg-sky/[0.04] px-3 py-2.5">
+                      <p className="text-[9.5px] uppercase tracking-[0.11em] text-sky/80">In plain words</p>
+                      <p className="mt-1 text-[12px] leading-relaxed text-cream/85">{response.explanation.text}</p>
+                      <p className="mt-1.5 text-[9.5px] text-muted/70">Written by {response.explanation.model} from LANDED&apos;s computed facts. It cannot change a number.</p>
+                    </div>
+                  ) : null}
+                  {response.explanationNote ? <p className="text-[10px] leading-relaxed text-muted/70">{response.explanationNote}</p> : null}
                   {response.cards?.length ? (
                     <div className="grid gap-2">
                       {response.cards.map((card) => (

@@ -17,7 +17,7 @@ context → deterministic decision → user follows → real outcome
 | Area | State |
 | --- | --- |
 | Financial engine | Real. Deterministic integer-minor-unit arithmetic, 45-day cash-flow simulation, route ranking. No LLM math. |
-| Demo data | **Synthetic and labelled everywhere.** 5 accounts, 53 transactions, 5 bills, 4 routes, 5 decisions, 21 lessons, 5 journal entries. |
+| Demo data | **Synthetic and labelled everywhere.** Seeded once; its dates roll forward so the scenario stays current without new ids (no duplicate Walrus writes). 5 accounts, 53 transactions, 5 bills, 4 routes, 5 decisions, 21 lessons, 5 journal entries. |
 | Spend Watch | Real. Deterministic recurring-charge detection and category pacing. Alerts come only from user-confirmed `SPEND_LIMIT` / `SUBSCRIPTION_WATCH` memories. |
 | Memory track record | Real. Every recorded outcome judges the lessons behind its decision (held / contradicted / inconclusive) and moves their confidence, which changes how strongly they act next time. |
 | Tatum Sui RPC | Real JSON-RPC integration (`sui-mainnet.gateway.tatum.io`) when `TATUM_API_KEY` is set: wallet balances and history, and transaction evidence (status, balance changes, gas) that fills and verifies outcomes. Without it: HTTP 503 and an explicit `not configured` state. No public-RPC substitution. |
@@ -29,7 +29,7 @@ context → deterministic decision → user follows → real outcome
 | Learning curve | Weekly rules-in-force and advice outcomes on Overview and Memory, from recorded outcomes only. |
 | Walrus Memory | Real `@mysten-incubation/memwal` writes and recalls when `MEMWAL_PRIVATE_KEY` + `MEMWAL_ACCOUNT_ID` are set. A record is only `confirmed` when the relayer returns a blob ID. |
 | Confirmed Mainnet memories | **0 in this checkout** — credentials are not present. The app reports 0 and labels all 26 records as local rehearsal. Nothing is faked. |
-| AI explanation layer | Optional OpenAI-compatible endpoint. Arithmetic, ranking, memory rules, and writes never depend on it. |
+| AI explanation layer | Optional OpenAI-compatible endpoint. Adds an "In plain words" rewrite to Ask LANDED's decisions; a reply containing any number LANDED did not compute is discarded. Arithmetic, ranking, memory rules, and writes never depend on it. |
 | Bank connections | None. Balances are self-reported, CSV-imported, or verified onchain through Tatum. |
 
 The seeded live decision is deliberately instructive:
@@ -66,7 +66,7 @@ pnpm db:reset
 ```bash
 pnpm typecheck
 pnpm lint
-pnpm test          # 72 tests, incl. Walrus flows end to end against the SDK's MemWalMock (write, inventory, recall coverage, updates, journal, fresh-install restore)
+pnpm test          # 80 tests, incl. Walrus flows end to end against the SDK's MemWalMock (write, inventory, recall coverage, updates, journal, fresh-install restore)
 pnpm build
 ```
 
