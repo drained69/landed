@@ -195,7 +195,7 @@ export function DecisionDetail({ decision }: { decision: Decision }) {
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
-        <Link href="/app/activity" className="flex h-8 w-8 items-center justify-center rounded-full border border-white/[0.08] text-muted transition hover:text-cream" aria-label="Back to activity">
+        <Link href="/app/activity" className="flex h-8 w-8 items-center justify-center rounded-full border border-black/[0.08] text-muted transition hover:text-cream" aria-label="Back to activity">
           <ArrowLeft className="h-3.5 w-3.5" />
         </Link>
         <div className="min-w-0">
@@ -210,14 +210,14 @@ export function DecisionDetail({ decision }: { decision: Decision }) {
 
       <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
         <Card className="relative overflow-hidden">
-          <div className="absolute -right-16 -top-20 h-52 w-52 rounded-full bg-lime/[0.07] blur-3xl" />
+          <div className="absolute -right-16 -top-20 h-52 w-52 rounded-full bg-[#f6b897]/25 blur-3xl" />
           <div className="relative p-5 sm:p-6">
             <p className="text-[10px] uppercase tracking-[0.13em] text-muted">LANDED recommended</p>
             <p className="mt-3 font-display text-[46px] leading-none tracking-[-0.035em] text-lime">{recommended ? formatMinor(recommended.amountMinor, recommended.currency) : "—"}</p>
             <p className="mt-2 text-[13px] text-cream">{recommended?.headline}</p>
             <p className="mt-2 max-w-lg text-[11.5px] leading-relaxed text-muted">{recommended?.rationale}</p>
 
-            <div className="mt-5 grid grid-cols-2 gap-3 border-t border-white/[0.07] pt-4 sm:grid-cols-4">
+            <div className="mt-5 grid grid-cols-2 gap-3 border-t border-black/[0.07] pt-4 sm:grid-cols-4">
               <div><p className="text-[9px] uppercase tracking-[0.1em] text-muted">No-memory baseline</p><p className="mt-1 text-[13.5px] tabular-nums text-muted">{baseline ? formatMinor(baseline.amountMinor, baseline.currency) : "—"}</p></div>
               <div><p className="text-[9px] uppercase tracking-[0.1em] text-muted">Predicted buffer</p><p className="mt-1 text-[13.5px] tabular-nums text-cream">{predicted ? formatMinor(predicted.projectedBufferAfterMinor, decision.currency) : "—"}</p></div>
               <div><p className="text-[9px] uppercase tracking-[0.1em] text-muted">Shortfall risk</p><p className="mt-1 text-[13.5px] tabular-nums text-cream">{predicted ? `${Math.round(predicted.shortfallRisk * 100)}%` : "—"}</p></div>
@@ -243,10 +243,10 @@ export function DecisionDetail({ decision }: { decision: Decision }) {
 
         <Card>
           <CardHeader title="Memory applied" subtitle={`${refs.length} lesson reference${refs.length === 1 ? "" : "s"} recorded on this decision.`} right={<Brain className="h-4 w-4 text-lime" />} />
-          <div className="space-y-2.5 border-t border-white/[0.06] px-5 py-4">
+          <div className="space-y-2.5 border-t border-black/[0.06] px-5 py-4">
             {refs.length === 0 ? <p className="text-[11px] leading-relaxed text-muted">No recalled lesson changed this recommendation. The baseline and informed answer match.</p> : null}
             {refs.map((ref) => (
-              <div key={ref.memoryId} className="rounded-xl border border-white/[0.07] bg-white/[0.015] p-3">
+              <div key={ref.memoryId} className="rounded-xl border border-black/[0.07] bg-black/[0.015] p-3">
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-[9px] text-lime/70">{ref.code}</span>
                   <span className="ml-auto text-[9px] text-muted/60">{ref.blobId ? "Walrus blob" : "local record"}</span>
@@ -274,7 +274,7 @@ export function DecisionDetail({ decision }: { decision: Decision }) {
             <div className="sm:col-span-2 lg:col-span-2">
               <Field label="Notes"><input className={inputClass} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Salary arrived late; rent still covered." maxLength={1000} /></Field>
             </div>
-            <div className="sm:col-span-2 lg:col-span-4 rounded-xl border border-white/[0.08] bg-white/[0.02] p-3.5">
+            <div className="sm:col-span-2 lg:col-span-4 rounded-xl border border-black/[0.08] bg-black/[0.02] p-3.5">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                 <Field label="Sui transaction digest (optional)" hint="LANDED reads it through Tatum and re-verifies it on save. Only a successful transaction can mark this outcome onchain-verified." className="flex-1">
                   <input className={`${inputClass} font-mono text-[11.5px]`} value={digest} onChange={(e) => { setDigest(e.target.value); setChain(null); }} placeholder="e.g. 8Jc7…" spellCheck={false} />
@@ -304,7 +304,7 @@ export function DecisionDetail({ decision }: { decision: Decision }) {
                 </div>
               ) : null}
             </div>
-            <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] px-3">
+            <div className="rounded-xl border border-black/[0.08] bg-black/[0.02] px-3">
               <Toggle checked={billsCovered} onChange={setBillsCovered} label="Bills covered" />
               <Toggle checked={shortfall} onChange={setShortfall} label="Shortfall occurred" />
             </div>
@@ -323,14 +323,14 @@ export function DecisionDetail({ decision }: { decision: Decision }) {
             subtitle="Predicted versus observed. Absolute errors are shown only where both values exist."
             right={<Badge tone={outcome.objectiveAchieved ? "lime" : "amber"}>{outcome.objectiveAchieved ? "objective achieved" : "objective missed"}</Badge>}
           />
-          <div className="grid gap-px border-t border-white/[0.06] bg-white/[0.06] sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-px border-t border-black/[0.06] bg-black/[0.06] sm:grid-cols-2 lg:grid-cols-4">
             {[
               { label: "Fee error", value: errors?.feeErrorMinor, format: (v: number) => formatMinor(Math.abs(v), decision.currency) },
               { label: "Received error", value: errors?.receivedErrorMinor, format: (v: number) => formatMinor(Math.abs(v), decision.currency) },
               { label: "Delivery error", value: errors?.deliveryErrorHours, format: (v: number) => `${Math.abs(v).toFixed(1)}h` },
               { label: "Buffer error", value: errors?.bufferErrorMinor, format: (v: number) => formatMinor(Math.abs(v), decision.currency) },
             ].map((item) => (
-              <div key={item.label} className="bg-[#11150f] p-4">
+              <div key={item.label} className="bg-white p-4">
                 <p className="text-[9px] uppercase tracking-[0.1em] text-muted">{item.label}</p>
                 <p className={`mt-1.5 text-[17px] tabular-nums ${item.value === null || item.value === undefined ? "text-muted" : Math.abs(item.value) > 0 ? "text-amber" : "text-lime"}`}>
                   {item.value === null || item.value === undefined ? "not recorded" : item.format(item.value)}
@@ -338,7 +338,7 @@ export function DecisionDetail({ decision }: { decision: Decision }) {
               </div>
             ))}
           </div>
-          <div className="grid gap-4 border-t border-white/[0.06] px-5 py-4 sm:grid-cols-2">
+          <div className="grid gap-4 border-t border-black/[0.06] px-5 py-4 sm:grid-cols-2">
             <div>
               <p className="text-[9.5px] uppercase tracking-[0.11em] text-muted">Confirmed observation</p>
               <p className="mt-1.5 text-[11.5px] leading-relaxed text-cream/80">{String(observed?.notes ?? "No notes recorded.")}</p>
@@ -351,7 +351,7 @@ export function DecisionDetail({ decision }: { decision: Decision }) {
             </div>
           </div>
           {decision.evidence.length > 0 ? (
-            <div className="border-t border-white/[0.06] px-5 py-4">
+            <div className="border-t border-black/[0.06] px-5 py-4">
               <p className="text-[9.5px] uppercase tracking-[0.11em] text-muted">How the lessons behind this advice held up</p>
               <ul className="mt-2 space-y-2">
                 {decision.evidence.map((e) => (
@@ -368,7 +368,7 @@ export function DecisionDetail({ decision }: { decision: Decision }) {
         </Card>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-2 border-b border-white/[0.07] pb-px">
+      <div className="flex flex-wrap items-center gap-2 border-b border-black/[0.07] pb-px">
         {([
           ["autopsy", "Autopsy"],
           ["replay", "Learning replay"],
@@ -384,8 +384,8 @@ export function DecisionDetail({ decision }: { decision: Decision }) {
         <div className="grid gap-4 lg:grid-cols-2">
           <Card>
             <CardHeader title="Counterfactual" subtitle="The baseline uses the identical input snapshot with memory removed." right={<GitCompareArrows className="h-4 w-4 text-muted" />} />
-            <div className="grid gap-px border-t border-white/[0.06] bg-white/[0.06] sm:grid-cols-2">
-              <div className="bg-[#11150f] p-4">
+            <div className="grid gap-px border-t border-black/[0.06] bg-black/[0.06] sm:grid-cols-2">
+              <div className="bg-white p-4">
                 <p className="text-[9px] uppercase tracking-[0.1em] text-muted">Without memory</p>
                 <p className="mt-2 text-[22px] tabular-nums text-muted">{baseline ? formatMinor(baseline.amountMinor, baseline.currency) : "—"}</p>
                 <p className="mt-1 text-[10px] leading-relaxed text-muted">{baseline?.headline}</p>
@@ -397,7 +397,7 @@ export function DecisionDetail({ decision }: { decision: Decision }) {
               </div>
             </div>
             {recommended?.adjustments?.length ? (
-              <div className="border-t border-white/[0.06] px-5 py-4">
+              <div className="border-t border-black/[0.06] px-5 py-4">
                 <p className="text-[9.5px] uppercase tracking-[0.11em] text-muted">Constraints that changed the answer</p>
                 <div className="mt-2 space-y-2">
                   {recommended.adjustments.map((adjustment, index) => (
@@ -416,7 +416,7 @@ export function DecisionDetail({ decision }: { decision: Decision }) {
 
           <Card>
             <CardHeader title="Assumptions at decision time" subtitle="Preserved verbatim in the audit record." right={<ChevronDown className="h-4 w-4 text-muted" />} />
-            <div className="space-y-3 border-t border-white/[0.06] px-5 py-4">
+            <div className="space-y-3 border-t border-black/[0.06] px-5 py-4">
               {decision.assumptions.map((assumption) => (
                 <div key={assumption.key} className="flex gap-2.5">
                   {assumption.source === "memory" ? <Brain className="mt-0.5 h-3 w-3 shrink-0 text-lime" /> : <CircleAlert className="mt-0.5 h-3 w-3 shrink-0 text-muted" />}
@@ -438,7 +438,7 @@ export function DecisionDetail({ decision }: { decision: Decision }) {
             subtitle="Re-run the identical input snapshot with only memories available at the cutoff. The original answer is never rewritten."
             right={<Database className="h-4 w-4 text-muted" />}
           />
-          <div className="flex flex-wrap items-end gap-3 border-t border-white/[0.06] px-5 py-4">
+          <div className="flex flex-wrap items-end gap-3 border-t border-black/[0.06] px-5 py-4">
             <Field label="Memory cutoff" hint="Memories created after this date are excluded." className="w-48">
               <input className={inputClass} type="date" value={cutoff} onChange={(e) => setCutoff(e.target.value)} />
             </Field>
@@ -446,9 +446,9 @@ export function DecisionDetail({ decision }: { decision: Decision }) {
             <p className="pb-1 text-[10px] text-muted">Original cutoff: {new Date(decision.createdAt).toISOString().slice(0, 10)}</p>
           </div>
           {replay ? (
-            <div className="animate-rise border-t border-white/[0.06]">
-              <div className="grid gap-px bg-white/[0.06] sm:grid-cols-2">
-                <div className="bg-[#11150f] p-5">
+            <div className="animate-rise border-t border-black/[0.06]">
+              <div className="grid gap-px bg-black/[0.06] sm:grid-cols-2">
+                <div className="bg-white p-5">
                   <p className="text-[9px] uppercase tracking-[0.11em] text-muted">Baseline arm · no memory</p>
                   <p className="mt-2 text-[26px] tabular-nums text-muted">{formatMinor(replay.baseline.action.amountMinor, decision.currency)}</p>
                   <p className="mt-1 text-[10.5px] leading-relaxed text-muted">{replay.baseline.action.headline}</p>
@@ -479,13 +479,13 @@ export function DecisionDetail({ decision }: { decision: Decision }) {
                 </div>
               </div>
               {replay.diffs.length > 0 ? (
-                <div className="border-t border-white/[0.06] px-5 py-3">
+                <div className="border-t border-black/[0.06] px-5 py-3">
                   {replay.diffs.map((diff, index) => (
                     <p key={index} className="text-[10px] text-muted">Changed <span className="text-cream/75">{diff.field}</span>: {String(diff.from)} → {String(diff.to)}</p>
                   ))}
                 </div>
               ) : null}
-              <p className="border-t border-white/[0.06] px-5 py-3 text-[9.5px] leading-relaxed text-muted/60">{replay.modeledRiskDelta.note}</p>
+              <p className="border-t border-black/[0.06] px-5 py-3 text-[9.5px] leading-relaxed text-muted/60">{replay.modeledRiskDelta.note}</p>
             </div>
           ) : null}
         </Card>
@@ -494,7 +494,7 @@ export function DecisionDetail({ decision }: { decision: Decision }) {
       {tab === "memories" ? (
         <Card>
           <CardHeader title="Draft and confirmed lessons" subtitle="Confirming is your decision. Unconfirmed hypotheses never change a recommendation." right={<Badge tone="muted">{decision.memories.length}</Badge>} />
-          <div className="divide-y divide-white/[0.06] border-t border-white/[0.06]">
+          <div className="divide-y divide-black/[0.06] border-t border-black/[0.06]">
             {decision.memories.length === 0 ? <p className="px-5 py-8 text-center text-[11.5px] text-muted">No lesson has been generated from this decision yet. Record an outcome first.</p> : null}
             {decision.memories.map((memory) => {
               const rule = parseJson<{ kind?: string } | null>(memory.structuredRule, null);
@@ -509,7 +509,7 @@ export function DecisionDetail({ decision }: { decision: Decision }) {
                   <p className="mt-2 text-[12px] text-cream">{memory.summary}</p>
                   <p className="mt-1 text-[11px] leading-relaxed text-muted">{memory.lesson}</p>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    {rule?.kind ? <span className="rounded bg-white/[0.04] px-1.5 py-0.5 font-mono text-[8.5px] text-lime/70">{rule.kind}</span> : null}
+                    {rule?.kind ? <span className="rounded bg-black/[0.04] px-1.5 py-0.5 font-mono text-[8.5px] text-lime/70">{rule.kind}</span> : null}
                     {memory.walrusBlobId ? (
                       <span className="truncate font-mono text-[8.5px] text-lime/60">blob {memory.walrusBlobId}</span>
                     ) : (
@@ -540,7 +540,7 @@ export function DecisionDetail({ decision }: { decision: Decision }) {
         </Card>
       ) : null}
 
-      <div className="flex items-center justify-between rounded-2xl border border-white/[0.07] bg-white/[0.015] px-4 py-3">
+      <div className="flex items-center justify-between rounded-2xl border border-black/[0.07] bg-black/[0.015] px-4 py-3">
         <p className="flex items-center gap-2 text-[10px] text-muted"><ShieldCheck className="h-3 w-3" /> Inputs are stored verbatim. Outcomes cannot be overwritten once evaluated.</p>
         <Link href="/app/plan" className="text-[10.5px] text-lime">Plan another move →</Link>
       </div>

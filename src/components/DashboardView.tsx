@@ -79,7 +79,7 @@ export function DashboardView({ data, curve, spend }: { data: Dashboard; curve: 
 
       <div className="grid gap-4 lg:grid-cols-[1.35fr_0.65fr]">
         <Card className="relative overflow-hidden">
-          <div className="absolute -right-24 -top-28 h-64 w-64 rounded-full bg-lime/[0.07] blur-3xl" />
+          <div className="absolute -right-24 -top-28 h-64 w-64 rounded-full bg-[#f6b897]/25 blur-3xl" />
           <div className="relative p-5 sm:p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -94,14 +94,23 @@ export function DashboardView({ data, curve, spend }: { data: Dashboard; curve: 
                     ? `After ${formatMinor(cf.essentialCommitmentsMinor, data.baseCurrency)} in protected commitments, ${formatMinor(cf.variableSpendReserveMinor, data.baseCurrency)} of near-term spending, and a ${formatMinor(cf.effectiveSafetyBufferMinor, data.baseCurrency)} buffer.`
                     : "Everything currently cleared is needed for near-term obligations. LANDED will not recommend moving money today."}
                 </p>
+                {cf.safeToMoveMinor <= 0 && cf.projectedMinBalanceMinor < cf.effectiveSafetyBufferMinor ? (
+                  <p className="mt-2 max-w-md text-[11.5px] leading-relaxed text-amber/90">
+                    Bills in the next 45 days take your balance to {formatMinor(cf.projectedMinBalanceMinor, data.baseCurrency)}
+                    {cf.projectedMinDate ? ` by ${new Date(cf.projectedMinDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}
+                    {cf.expectedIncomeExcludedMinor > 0
+                      ? <>, before the {formatMinor(cf.expectedIncomeExcludedMinor, data.baseCurrency)} of expected income LANDED waits to see land. <Link href="/app/plan" className="underline decoration-amber/40 underline-offset-2 hover:text-amber">Plan a move</Link> with “count expected income” to compare.</>
+                      : <>, and no income is recorded yet. <Link href="/app/activity" className="underline decoration-amber/40 underline-offset-2 hover:text-amber">Add your paycheck</Link> so LANDED can forecast it.</>}
+                  </p>
+                ) : null}
               </div>
-              <Link href="/app/plan" className="group hidden shrink-0 items-center gap-2 rounded-full bg-lime px-4 py-2 text-[12px] font-medium text-[#0b1007] transition hover:bg-[#d8ff8e] sm:flex">
+              <Link href="/app/plan" className="group hidden shrink-0 items-center gap-2 rounded-full bg-ink px-4 py-2 text-[12px] font-medium text-white transition hover:bg-black/80 sm:flex">
                 Plan a move <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
               </Link>
             </div>
 
             <div className="mt-7">
-              <div className="flex h-2 w-full overflow-hidden rounded-full bg-white/[0.05]">
+              <div className="flex h-2 w-full overflow-hidden rounded-full bg-black/[0.05]">
                 {segments.map((segment) => (
                   <div key={segment.label} className={segment.color} style={{ width: `${Math.max(0, (segment.value / cleared) * 100)}%` }} title={`${segment.label}: ${formatMinor(segment.value, data.baseCurrency)}`} />
                 ))}
@@ -113,12 +122,12 @@ export function DashboardView({ data, curve, spend }: { data: Dashboard; curve: 
                   </span>
                 ))}
                 <span className="flex items-center gap-1.5 text-[10px] text-muted">
-                  <span className="h-1.5 w-1.5 rounded-full bg-white/20" /> Cleared <span className="tabular-nums text-cream/70">{formatMinor(cf.clearedLiquidMinor, data.baseCurrency)}</span>
+                  <span className="h-1.5 w-1.5 rounded-full bg-black/20" /> Cleared <span className="tabular-nums text-cream/70">{formatMinor(cf.clearedLiquidMinor, data.baseCurrency)}</span>
                 </span>
               </div>
             </div>
 
-            <div className="mt-6 grid gap-3 border-t border-white/[0.07] pt-4 sm:grid-cols-3">
+            <div className="mt-6 grid gap-3 border-t border-black/[0.07] pt-4 sm:grid-cols-3">
               <div>
                 <p className="text-[9.5px] uppercase tracking-[0.12em] text-muted">Projected low point</p>
                 <p className="mt-1 text-[15px] tabular-nums text-cream">{formatMinor(cf.projectedMinBalanceMinor, data.baseCurrency)}</p>
@@ -136,7 +145,7 @@ export function DashboardView({ data, curve, spend }: { data: Dashboard; curve: 
               </div>
             </div>
 
-            <Link href="/app/plan" className="mt-5 flex h-10 items-center justify-center gap-2 rounded-full bg-lime text-[12.5px] font-medium text-[#0b1007] sm:hidden">
+            <Link href="/app/plan" className="mt-5 flex h-10 items-center justify-center gap-2 rounded-full bg-ink text-[12.5px] font-medium text-white sm:hidden">
               Plan a move <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
@@ -165,7 +174,7 @@ export function DashboardView({ data, curve, spend }: { data: Dashboard; curve: 
                 ? `${data.learning.confirmedMemoryCount} confirmed with a Walrus blob ID.`
                 : "Held in the local rehearsal ledger. No Mainnet write is claimed yet."}
             </p>
-            <div className="mt-4 flex items-center justify-between border-t border-white/[0.07] pt-3 text-[10.5px]">
+            <div className="mt-4 flex items-center justify-between border-t border-black/[0.07] pt-3 text-[10.5px]">
               <span className="text-muted">Evaluated outcomes</span>
               <span className="tabular-nums text-cream">{data.learning.evaluatedCount}</span>
             </div>
@@ -199,7 +208,7 @@ export function DashboardView({ data, curve, spend }: { data: Dashboard; curve: 
                 );
               })}
             </div>
-            <p className="mt-4 border-t border-white/[0.07] pt-3 text-[9.5px] leading-relaxed text-muted/70">Other currencies are valued only with a sourced Tatum Data API rate, for reference — never added to safe-to-move.</p>
+            <p className="mt-4 border-t border-black/[0.07] pt-3 text-[9.5px] leading-relaxed text-muted/70">Other currencies are valued only with a sourced Tatum Data API rate, for reference — never added to safe-to-move.</p>
           </Card>
         </div>
       </div>
@@ -236,7 +245,7 @@ export function DashboardView({ data, curve, spend }: { data: Dashboard; curve: 
           <div className="px-3 pb-4 sm:px-5">
             <CashflowChart data={data.cashFlowSeries} currency={data.baseCurrency} />
           </div>
-          <div className="grid grid-cols-3 gap-3 border-t border-white/[0.07] px-5 py-4">
+          <div className="grid grid-cols-3 gap-3 border-t border-black/[0.07] px-5 py-4">
             <div><p className="text-[9.5px] uppercase tracking-[0.11em] text-muted">Monthly income</p><p className="mt-1 text-[13.5px] tabular-nums text-cream">{formatMinor(data.monthlyIncomeMinor, data.baseCurrency)}</p></div>
             <div><p className="text-[9.5px] uppercase tracking-[0.11em] text-muted">Monthly expenses</p><p className="mt-1 text-[13.5px] tabular-nums text-cream">{formatMinor(data.monthlyExpenseMinor, data.baseCurrency)}</p></div>
             <div><p className="text-[9.5px] uppercase tracking-[0.11em] text-muted">Variable reserve / day</p><p className="mt-1 text-[13.5px] tabular-nums text-cream">{formatMinor(Math.round(cf.variableSpendReserveMinor / 14), data.baseCurrency)}</p></div>
@@ -249,7 +258,7 @@ export function DashboardView({ data, curve, spend }: { data: Dashboard; curve: 
             subtitle="Essential and important bills reduce safe-to-move."
             right={<CalendarClock className="h-4 w-4 text-muted" />}
           />
-          <div className="divide-y divide-white/[0.06] border-t border-white/[0.06]">
+          <div className="divide-y divide-black/[0.06] border-t border-black/[0.06]">
             {data.upcoming.length === 0 ? <p className="px-5 py-8 text-center text-[11.5px] text-muted">No upcoming commitments entered.</p> : null}
             {data.upcoming.slice(0, 5).map((item) => (
               <div key={item.id} className="flex items-center justify-between gap-3 px-5 py-3">
@@ -261,7 +270,7 @@ export function DashboardView({ data, curve, spend }: { data: Dashboard; curve: 
               </div>
             ))}
           </div>
-          <div className="border-t border-white/[0.06] px-5 py-3">
+          <div className="border-t border-black/[0.06] px-5 py-3">
             <Link href="/app/settings" className="flex items-center justify-between text-[10.5px] text-muted transition hover:text-lime">
               Manage bills and accounts <ChevronRight className="h-3.5 w-3.5" />
             </Link>
@@ -276,9 +285,9 @@ export function DashboardView({ data, curve, spend }: { data: Dashboard; curve: 
             subtitle={data.memoryRetrieval.mode === "local_rehearsal" ? "Walrus is not configured here. These are local rehearsal lessons, not Mainnet writes." : "Recalled through the Walrus-backed memory layer."}
             right={<Brain className="h-4 w-4 text-lime" />}
           />
-          <div className="space-y-3 border-t border-white/[0.06] px-5 py-4">
+          <div className="space-y-3 border-t border-black/[0.06] px-5 py-4">
             {data.insights.map((insight, index) => (
-              <div key={`${insight.title}-${index}`} className="rounded-xl border border-white/[0.07] bg-white/[0.015] p-3.5">
+              <div key={`${insight.title}-${index}`} className="rounded-xl border border-black/[0.07] bg-black/[0.015] p-3.5">
                 <div className="flex items-center gap-2">
                   {insight.tone === "memory" ? <Brain className="h-3 w-3 text-lime" /> : insight.tone === "warning" ? <CircleAlert className="h-3 w-3 text-amber" /> : <Sparkles className="h-3 w-3 text-sky" />}
                   <p className="text-[10px] uppercase tracking-[0.11em] text-muted">{insight.title}</p>
@@ -298,10 +307,10 @@ export function DashboardView({ data, curve, spend }: { data: Dashboard; curve: 
             subtitle="Open any decision to see the exact inputs, prediction, and autopsy."
             right={<Link href="/app/activity" className="text-[11px] text-muted transition hover:text-lime">All →</Link>}
           />
-          <div className="divide-y divide-white/[0.06] border-t border-white/[0.06]">
+          <div className="divide-y divide-black/[0.06] border-t border-black/[0.06]">
             {pending.length === 0 ? <p className="px-5 py-8 text-center text-[11.5px] text-muted">No open decisions. Plan a move to create one.</p> : null}
             {pending.map((decision) => (
-              <Link key={decision.id} href={`/app/decisions/${decision.id}`} className="group flex items-start justify-between gap-3 px-5 py-3.5 transition hover:bg-white/[0.02]">
+              <Link key={decision.id} href={`/app/decisions/${decision.id}`} className="group flex items-start justify-between gap-3 px-5 py-3.5 transition hover:bg-black/[0.02]">
                 <div className="min-w-0">
                   <p className="truncate text-[12px] text-cream">{decision.objective}</p>
                   <p className="mt-0.5 text-[10px] text-muted">{new Date(decision.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {decision.status}</p>
@@ -318,9 +327,9 @@ export function DashboardView({ data, curve, spend }: { data: Dashboard; curve: 
 
       <Card>
         <CardHeader title="Accounts" subtitle="Balances are authoritative. Recording a transaction does not double-adjust them." right={<Link href="/app/settings" className="text-[11px] text-muted transition hover:text-lime">Manage →</Link>} />
-        <div className="grid gap-px overflow-hidden border-t border-white/[0.06] bg-white/[0.05] sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-px overflow-hidden border-t border-black/[0.06] bg-black/[0.05] sm:grid-cols-2 lg:grid-cols-3">
           {data.accounts.map((account) => (
-            <div key={account.id} className="bg-[#11150f] p-4">
+            <div key={account.id} className="bg-white p-4">
               <div className="flex items-center justify-between gap-2">
                 <span className="flex items-center gap-2 text-[11px] text-muted">
                   {account.accountType === "savings" ? <PiggyBank className="h-3.5 w-3.5" /> : account.accountType === "stablecoin" || account.accountType === "wallet" ? <Wallet className="h-3.5 w-3.5" /> : <Landmark className="h-3.5 w-3.5" />}
@@ -339,11 +348,11 @@ export function DashboardView({ data, curve, spend }: { data: Dashboard; curve: 
         </div>
       </Card>
 
-      <div className="flex items-center justify-between gap-4 rounded-2xl border border-white/[0.07] bg-white/[0.015] px-4 py-3">
+      <div className="flex items-center justify-between gap-4 rounded-2xl border border-black/[0.07] bg-black/[0.015] px-4 py-3">
         <p className="text-[10.5px] leading-relaxed text-muted">
           LANDED is a planning tool, not a bank or a money transmitter. Demo balances and outcomes are synthetic.
         </p>
-        <Link href="/app/learning" className="shrink-0 text-[10.5px] text-lime transition hover:text-[#d8ff8e]">Verify memory →</Link>
+        <Link href="/app/learning" className="shrink-0 text-[10.5px] text-lime transition hover:text-lime">Verify memory →</Link>
       </div>
     </div>
   );

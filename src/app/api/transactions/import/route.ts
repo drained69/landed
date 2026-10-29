@@ -4,6 +4,7 @@ import { prisma } from "@/server/db";
 import { api, ApiError } from "@/server/api";
 import { requireApiUser } from "@/server/auth";
 import { parseAmountToMinor } from "@/lib/money";
+import { rowDirection } from "@/server/csv";
 
 interface CsvRow {
   date?: string;
@@ -87,10 +88,7 @@ export const POST = api(async (req) => {
     const description = (row.description ?? row.Description ?? row.merchant ?? row.Merchant ?? "").trim();
     const currency = (row.currency ?? row.Currency ?? user.preferredCurrency).toUpperCase();
     if (!date || !rawAmount) { skipped += 1; continue; }
-    let direction = (row.direction ?? row.Direction ?? "").toLowerCase();
-    if (direction !== "in" && direction !== "out") {
-      direction = Number(String(rawAmount).replace(/[^0-9.-]/g, "")) >= 0 ? "out" : "in";
-    }
+    const direction = rowDirection(String(rawAmount), row.direction ?? row.Direction);
     let amountMinor: number;
     try {
       amountMinor = Math.abs(parseAmountToMinor(rawAmount, currency));

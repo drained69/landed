@@ -43,7 +43,7 @@ function MemoryChip({ memory }: { memory: MemoryRef }) {
     <span
       className={cn(
         "inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 font-mono text-[9.5px]",
-        fromWalrus ? "border-lime/25 bg-lime/[0.06] text-lime/90" : "border-white/[0.08] bg-white/[0.03] text-muted",
+        fromWalrus ? "border-lime/25 bg-lime/[0.06] text-lime/90" : "border-black/[0.08] bg-black/[0.03] text-muted",
       )}
       title={`${memory.summary}${fromWalrus ? " — recalled from Walrus on this request" : " — from the local ledger"}`}
     >
@@ -192,7 +192,7 @@ export function SpendWatchView({ watch, baselineAlerts, isDemo }: { watch: Spend
             body="Remember a limit or approve a subscription price below and LANDED will watch it from now on — across sessions and devices."
           />
         ) : (
-          <ul className="divide-y divide-white/[0.06] border-t border-white/[0.06]">
+          <ul className="divide-y divide-black/[0.06] border-t border-black/[0.06]">
             {watch.alerts.map((alert) => (
               <li key={alert.key} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                 <div className="min-w-0">
@@ -219,13 +219,13 @@ export function SpendWatchView({ watch, baselineAlerts, isDemo }: { watch: Spend
             title={<span className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-lime" /> LANDED noticed</span>}
             subtitle="Observations from your transactions. Nothing here changes advice until you choose to remember it."
           />
-          <ul className="divide-y divide-white/[0.06] border-t border-white/[0.06]">
+          <ul className="divide-y divide-black/[0.06] border-t border-black/[0.06]">
             {watch.proposals.map((p) => (
               <li key={p.key} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-[13.5px] text-cream">{p.title}</p>
-                    <span className="rounded bg-white/[0.04] px-1.5 py-0.5 font-mono text-[9px] text-lime/70">{p.kind}</span>
+                    <span className="rounded bg-black/[0.04] px-1.5 py-0.5 font-mono text-[9px] text-lime/70">{p.kind}</span>
                   </div>
                   <p className="mt-1 text-[12px] leading-relaxed text-muted">{p.detail}</p>
                 </div>
@@ -246,7 +246,7 @@ export function SpendWatchView({ watch, baselineAlerts, isDemo }: { watch: Spend
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader title="Category pace" subtitle="Month to date against your remembered limit, or your usual month when no limit is set." />
-          <div className="space-y-4 border-t border-white/[0.06] px-5 py-5 sm:px-6">
+          <div className="space-y-4 border-t border-black/[0.06] px-5 py-5 sm:px-6">
             {watch.categories.length === 0 ? <p className="text-[12px] text-muted">No discretionary spending recorded yet.</p> : null}
             {watch.categories.map((cat) => {
               const reference = cat.limitMinor ?? cat.usualMonthlyMinor;
@@ -287,9 +287,9 @@ export function SpendWatchView({ watch, baselineAlerts, isDemo }: { watch: Spend
             title={<span className="flex items-center gap-2"><Repeat className="h-4 w-4 text-sky" /> Recurring charges</span>}
             subtitle="Detected from a fixed price on a regular schedule. Rent and utilities stay with your obligations."
           />
-          <div className="border-t border-white/[0.06]">
+          <div className="border-t border-black/[0.06]">
             {watch.recurring.length === 0 ? <p className="px-6 py-5 text-[12px] text-muted">No recurring charges detected yet. Two or more charges on a schedule are needed.</p> : null}
-            <ul className="divide-y divide-white/[0.06]">
+            <ul className="divide-y divide-black/[0.06]">
               {watch.recurring.map((r) => (
                 <li key={r.key} className="px-5 py-3.5 sm:px-6">
                   <div className="flex items-start justify-between gap-3">

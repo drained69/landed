@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { ArrowDownLeft, ArrowUpRight, Brain, ChevronRight, CircleCheck, CircleDashed, Clock } from "lucide-react";
 import { formatMinor } from "@/lib/money";
 import { Badge, Card, CardHeader, EmptyState } from "@/components/ui";
+import { TransactionTools } from "@/components/TransactionTools";
 
 type DecisionRow = {
   id: string; objective: string; status: string; decisionType: string; currency: string;
@@ -33,8 +34,12 @@ const statusTone: Record<string, "lime" | "amber" | "red" | "sky" | "muted"> = {
   settled: "lime", failed: "red", planned: "amber", pending: "amber", cancelled: "muted",
 };
 
-export function ActivityView({ decisions, transactions, movements }: { decisions: DecisionRow[]; transactions: TransactionRow[]; movements: MovementRow[] }) {
-  const [tab, setTab] = useState<"decisions" | "transactions" | "movements">("decisions");
+export function ActivityView({ decisions, transactions, movements, currency, accounts }: {
+  decisions: DecisionRow[]; transactions: TransactionRow[]; movements: MovementRow[];
+  currency: string; accounts: { id: string; name: string; currency: string }[];
+}) {
+  // A new account has transactions to add before it has decisions to review.
+  const [tab, setTab] = useState<"decisions" | "transactions" | "movements">(decisions.length === 0 ? "transactions" : "decisions");
   const [filter, setFilter] = useState("all");
 
   const filtered = useMemo(() => {
@@ -57,16 +62,18 @@ export function ActivityView({ decisions, transactions, movements }: { decisions
         <Badge tone="muted">{decisions.length} decisions · {movements.length} movements</Badge>
       </div>
 
+      <TransactionTools currency={currency} accounts={accounts} />
+
       <div className="flex flex-wrap items-center gap-2">
         {(["decisions", "transactions", "movements"] as const).map((item) => (
-          <button key={item} onClick={() => setTab(item)} className={`rounded-full px-3.5 py-1.5 text-[11.5px] capitalize transition ${tab === item ? "bg-[#272f23] text-cream" : "text-muted hover:text-cream"}`}>
+          <button key={item} onClick={() => setTab(item)} className={`rounded-full px-3.5 py-1.5 text-[11.5px] capitalize transition ${tab === item ? "bg-black/[0.06] text-cream" : "text-muted hover:text-cream"}`}>
             {item}
           </button>
         ))}
         {tab === "decisions" ? (
           <div className="ml-auto flex flex-wrap gap-1.5">
             {["all", "advised", "followed", "evaluated", "declined"].map((item) => (
-              <button key={item} onClick={() => setFilter(item)} className={`rounded-full border px-2.5 py-1 text-[10px] capitalize transition ${filter === item ? "border-lime/30 bg-lime/[0.08] text-lime" : "border-white/[0.08] text-muted hover:text-cream"}`}>
+              <button key={item} onClick={() => setFilter(item)} className={`rounded-full border px-2.5 py-1 text-[10px] capitalize transition ${filter === item ? "border-lime/30 bg-lime/[0.08] text-lime" : "border-black/[0.08] text-muted hover:text-cream"}`}>
                 {item}
               </button>
             ))}
@@ -77,12 +84,12 @@ export function ActivityView({ decisions, transactions, movements }: { decisions
       {tab === "decisions" ? (
         <Card>
           {filtered.length === 0 ? <EmptyState title="No decisions here" body="Plan a move to create an auditable recommendation with its counterfactual and memory references." /> : null}
-          <div className="divide-y divide-white/[0.06]">
+          <div className="divide-y divide-black/[0.06]">
             {filtered.map((decision) => {
               const outcome = decision.outcomes[0];
               const changed = decision.recommended && decision.baseline && decision.recommended.amountMinor !== decision.baseline.amountMinor;
               return (
-                <Link key={decision.id} href={`/app/decisions/${decision.id}`} className="group block px-5 py-4 transition hover:bg-white/[0.018] sm:px-6">
+                <Link key={decision.id} href={`/app/decisions/${decision.id}`} className="group block px-5 py-4 transition hover:bg-black/[0.018] sm:px-6">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
@@ -120,11 +127,11 @@ export function ActivityView({ decisions, transactions, movements }: { decisions
       {tab === "transactions" ? (
         <Card>
           <CardHeader title="Posted transactions" subtitle="Synthetic demo records are labelled. A transaction never silently changes an account balance." right={<Badge tone="muted">{transactions.length}</Badge>} />
-          <div className="divide-y divide-white/[0.06] border-t border-white/[0.06]">
-            {transactions.length === 0 ? <EmptyState title="No transactions" body="Import a CSV or add a transaction in Settings." /> : null}
+          <div className="divide-y divide-black/[0.06] border-t border-black/[0.06]">
+            {transactions.length === 0 ? <EmptyState title="No transactions yet" body="Add a transaction or import your bank's CSV export above. Spend Watch and income forecasts learn from these." /> : null}
             {transactions.map((tx) => (
               <div key={tx.id} className="flex items-center gap-3 px-5 py-3 sm:px-6">
-                <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${tx.direction === "in" ? "bg-lime/[0.08] text-lime" : "bg-white/[0.05] text-muted"}`}>
+                <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${tx.direction === "in" ? "bg-lime/[0.08] text-lime" : "bg-black/[0.05] text-muted"}`}>
                   {tx.direction === "in" ? <ArrowDownLeft className="h-3.5 w-3.5" /> : <ArrowUpRight className="h-3.5 w-3.5" />}
                 </span>
                 <div className="min-w-0 flex-1">
@@ -143,11 +150,11 @@ export function ActivityView({ decisions, transactions, movements }: { decisions
       {tab === "movements" ? (
         <Card>
           <CardHeader title="Money movements" subtitle="Only confirmed, evaluated movements become outcome evidence." right={<Badge tone="muted">{movements.length}</Badge>} />
-          <div className="divide-y divide-white/[0.06] border-t border-white/[0.06]">
+          <div className="divide-y divide-black/[0.06] border-t border-black/[0.06]">
             {movements.length === 0 ? <EmptyState title="No settled movements" body="Mark a decision as followed, then record the real fee, delivery time, and buffer." /> : null}
             {movements.map((movement) => (
               <div key={movement.id} className="flex flex-wrap items-center gap-3 px-5 py-3.5 sm:px-6">
-                <span className={`flex h-7 w-7 items-center justify-center rounded-full ${movement.status === "settled" ? "bg-lime/[0.08] text-lime" : "bg-white/[0.05] text-muted"}`}>
+                <span className={`flex h-7 w-7 items-center justify-center rounded-full ${movement.status === "settled" ? "bg-lime/[0.08] text-lime" : "bg-black/[0.05] text-muted"}`}>
                   {movement.status === "settled" ? <CircleCheck className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
                 </span>
                 <div className="min-w-0 flex-1">

@@ -7,6 +7,7 @@ import { ArrowLeft, ArrowRight, LockKeyhole, Mail, User } from "lucide-react";
 import { post, errorMessage } from "@/lib/client";
 import { Button, ErrorNote, Field, inputClass } from "@/components/ui";
 import { DemoButton } from "@/components/DemoButton";
+import { Logo } from "@/components/Logo";
 
 export function AuthForm({ initialMode }: { initialMode: "signin" | "signup" }) {
   const router = useRouter();
@@ -38,12 +39,11 @@ export function AuthForm({ initialMode }: { initialMode: "signin" | "signup" }) 
 
   return (
     <div className="flex min-h-dvh flex-col lg:grid lg:grid-cols-[1.05fr_0.95fr]">
-      <aside className="relative hidden overflow-hidden border-r border-white/[0.07] p-10 lg:flex lg:flex-col lg:justify-between">
-        <div className="absolute inset-0 grid-noise opacity-60" />
-        <div className="absolute -left-24 top-1/3 h-80 w-80 rounded-full bg-lime/[0.08] blur-3xl" />
+      <aside className="sky relative m-3 hidden overflow-hidden rounded-[36px] p-10 lg:flex lg:flex-col lg:justify-between">
+        <span className="cloud left-[12%] top-[24%] h-14 w-48" />
+        <span className="cloud right-[10%] top-[58%] h-16 w-56" />
         <Link href="/" className="relative flex items-center gap-2.5">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-lime text-[13px] font-bold text-[#0b1007]">L</span>
-          <span className="text-[15px] font-semibold tracking-[0.16em] text-cream">LANDED</span>
+          <Logo size={28} />
         </Link>
         <div className="relative max-w-md">
           <p className="font-display text-[44px] leading-[1.02] text-cream">
@@ -86,18 +86,18 @@ export function AuthForm({ initialMode }: { initialMode: "signin" | "signup" }) 
               : "Enter your own numbers. Nothing is connected without your explicit action."}
           </p>
 
-          <div className="mt-7 grid grid-cols-2 rounded-xl border border-white/[0.08] bg-white/[0.02] p-1">
+          <div className="mt-7 grid grid-cols-2 rounded-xl border border-black/[0.08] bg-black/[0.02] p-1">
             <button
               type="button"
               onClick={() => { setMode("signin"); setError(null); }}
-              className={`h-9 rounded-lg text-[12px] transition ${mode === "signin" ? "bg-[#242b21] text-cream" : "text-muted hover:text-cream"}`}
+              className={`h-9 rounded-lg text-[12px] transition ${mode === "signin" ? "bg-black/[0.06] text-cream" : "text-muted hover:text-cream"}`}
             >
               Sign in
             </button>
             <button
               type="button"
               onClick={() => { setMode("signup"); setError(null); }}
-              className={`h-9 rounded-lg text-[12px] transition ${mode === "signup" ? "bg-[#242b21] text-cream" : "text-muted hover:text-cream"}`}
+              className={`h-9 rounded-lg text-[12px] transition ${mode === "signup" ? "bg-black/[0.06] text-cream" : "text-muted hover:text-cream"}`}
             >
               Create account
             </button>
@@ -128,16 +128,21 @@ export function AuthForm({ initialMode }: { initialMode: "signin" | "signup" }) 
             <Button type="submit" size="lg" className="w-full" loading={loading}>
               {mode === "signin" ? "Sign in" : "Create account"} <ArrowRight className="h-4 w-4" />
             </Button>
+            {mode === "signup" ? (
+              <p className="text-center text-[10.5px] leading-relaxed text-muted/80">
+                By creating an account you agree to the <Link href="/privacy" className="text-cream/80 underline underline-offset-2 hover:text-lime">privacy and terms</Link>. LANDED is a planning tool, not a bank or financial adviser.
+              </p>
+            ) : null}
           </form>
 
           <div className="my-6 flex items-center gap-3">
-            <span className="h-px flex-1 bg-white/[0.08]" />
+            <span className="h-px flex-1 bg-black/[0.08]" />
             <span className="text-[10px] uppercase tracking-[0.14em] text-muted/60">or use the seeded demo</span>
-            <span className="h-px flex-1 bg-white/[0.08]" />
+            <span className="h-px flex-1 bg-black/[0.08]" />
           </div>
 
           <DemoButton className="[&>button]:w-full [&>button]:justify-center" label="Open demo account" />
-          <div className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.02] px-3.5 py-2.5 font-mono text-[10.5px] leading-relaxed text-muted">
+          <div className="mt-3 rounded-xl border border-black/[0.07] bg-black/[0.02] px-3.5 py-2.5 font-mono text-[10.5px] leading-relaxed text-muted">
             demo@landed.app · landed-demo-2026<br />
             <span className="text-muted/60">Synthetic data only. Seeded outcomes are labelled in-app.</span>
           </div>

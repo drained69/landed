@@ -1,19 +1,21 @@
-import { addDays, addMonths, subDays } from "date-fns";
 import { prisma } from "@/server/db";
 
 export interface OnboardingInput {
   currency: string;
   objective: string;
   startingBalanceMinor: number;
-  obligations: { name: string; amountMinor: number; dueDate: Date; priority: string }[];
+  obligations: { name: string; amountMinor: number; dueDate: Date; priority: string; recurrence: string }[];
   safetyBufferMinor: number;
   riskPosture: string;
-  includeExampleData: boolean;
+  /** The most recent paycheck actually received; its cadence lets LANDED forecast the next one. */
+  income?: { label: string; amountMinor: number; receivedAt: Date; cadenceDays: number } | null;
 }
 
+/**
+ * Turn onboarding answers into the person's own records. Nothing synthetic is
+ * created for a real account: the demo account is where example data lives.
+ */
 export async function completeOnboarding(userId: string, input: OnboardingInput) {
-  const now = new Date();
-
   await prisma.user.update({
     where: { id: userId },
     data: {
@@ -30,19 +32,38 @@ export async function completeOnboarding(userId: string, input: OnboardingInput)
     await prisma.financialAccount.create({
       data: {
         userId,
-        name: input.includeExampleData ? "Example · Everyday account" : "Everyday account",
+        name: "Everyday account",
         accountType: "bank",
         provider: "Self-reported",
         currency: input.currency,
         balanceMinor: input.startingBalanceMinor,
-        balanceSource: input.includeExampleData ? "demo" : "manual",
+        balanceSource: "manual",
         verificationStatus: "user_confirmed",
         isLiquid: true,
         includeInSafeToMove: true,
-        isSynthetic: input.includeExampleData,
-        notes: input.includeExampleData
-          ? "Synthetic example account created during onboarding. Clearly labelled, not a bank connection."
-          : "Manually entered balance.",
+        notes: "Balance entered during onboarding. Update it, import a CSV, or sync a Sui wallet any time.",
+      },
+    });
+  }
+
+  if (input.income) {
+    const account = await prisma.financialAccount.findFirst({ where: { userId }, orderBy: { createdAt: "asc" } });
+    await prisma.transaction.create({
+      data: {
+        userId,
+        accountId: account?.id ?? null,
+        amountMinor: input.income.amountMinor,
+        currency: input.currency,
+        direction: "in",
+        category: "income",
+        merchant: input.income.label,
+        description: "Most recent paycheck (entered during onboarding)",
+        timestamp: input.income.receivedAt,
+        source: "manual",
+        status: "posted",
+        verificationStatus: "user_confirmed",
+        dedupeKey: `onboarding-income-${userId}`,
+        metadata: JSON.stringify({ cadenceDays: input.income.cadenceDays }),
       },
     });
   }
@@ -56,161 +77,28 @@ export async function completeOnboarding(userId: string, input: OnboardingInput)
         amountMinor: obligation.amountMinor,
         currency: input.currency,
         dueDate: obligation.dueDate,
-        recurrence: "none",
+        recurrence: obligation.recurrence,
         priority: obligation.priority,
         status: "upcoming",
-        isSynthetic: input.includeExampleData,
       },
     });
   }
 
-  if (input.includeExampleData) {
-    await prisma.financialAccount.createMany({
-      data: [
-        {
-          userId,
-          name: "Example · Cash",
-          accountType: "cash",
-          provider: "Self-reported",
-          currency: input.currency,
-          balanceMinor: 22000,
-          balanceSource: "demo",
-          verificationStatus: "user_confirmed",
-          isLiquid: true,
-          isSynthetic: true,
-        },
-        {
-          userId,
-          name: "Example · Emergency savings",
-          accountType: "savings",
-          provider: "Self-reported",
-          currency: input.currency,
-          balanceMinor: 120000,
-          balanceSource: "demo",
-          verificationStatus: "user_confirmed",
-          isLiquid: false,
-          isSynthetic: true,
-        },
-      ],
-    });
-
-    const examples = [
-      { name: "Example · Rent", amountMinor: 145000, days: 6, priority: "essential" },
-      { name: "Example · Internet", amountMinor: 6500, days: 9, priority: "essential" },
-      { name: "Example · Phone", amountMinor: 4500, days: 12, priority: "important" },
-      { name: "Example · Streaming", amountMinor: 1800, days: 3, priority: "discretionary" },
-    ];
-    for (const e of examples) {
-      await prisma.commitment.create({
+  if (input.safetyBufferMinor > 0) {
+    const hasGoal = await prisma.savingsGoal.count({ where: { userId } });
+    if (hasGoal === 0) {
+      await prisma.savingsGoal.create({
         data: {
           userId,
-          name: e.name,
-          amountMinor: e.amountMinor,
+          name: "Emergency fund",
+          targetMinor: input.safetyBufferMinor * 3,
+          currentMinor: 0,
           currency: input.currency,
-          dueDate: addDays(now, e.days),
-          recurrence: e.name.includes("Streaming") ? "monthly" : "none",
-          priority: e.priority,
-          status: "upcoming",
-          isSynthetic: true,
-        },
-      });
-    }
-
-    await prisma.savingsGoal.createMany({
-      data: [
-        {
-          userId,
-          name: "Example · Emergency fund",
-          targetMinor: 600000,
-          currentMinor: 120000,
-          currency: input.currency,
-          targetDate: addMonths(now, 10),
-          monthlyContributionMinor: 25000,
+          monthlyContributionMinor: Math.round(input.safetyBufferMinor * 0.2),
           priority: "essential",
-          isSynthetic: true,
-        },
-      ],
-    });
-
-    const income = [320000, 320000, 335000];
-    for (let i = 0; i < 3; i++) {
-      const date = subDays(now, 8 + i * 30);
-      await prisma.transaction.create({
-        data: {
-          userId,
-          amountMinor: income[i],
-          currency: input.currency,
-          direction: "in",
-          category: "income",
-          merchant: "Example · Salary",
-          description: "Synthetic salary for demonstration",
-          timestamp: date,
-          source: "demo",
-          status: "posted",
-          verificationStatus: "user_confirmed",
-          isSynthetic: true,
-          dedupeKey: `onboarding-income-${userId}-${i}`,
-        },
-      });
-      await prisma.transaction.create({
-        data: {
-          userId,
-          amountMinor: 145000,
-          currency: input.currency,
-          direction: "out",
-          category: "housing",
-          merchant: "Example · Rent",
-          description: "Synthetic rent payment",
-          timestamp: subDays(now, 5 + i * 30),
-          source: "demo",
-          status: "posted",
-          verificationStatus: "user_confirmed",
-          isSynthetic: true,
-          dedupeKey: `onboarding-rent-${userId}-${i}`,
         },
       });
     }
-
-    const route = await prisma.paymentRoute.create({
-      data: {
-        userId,
-        name: "Example · Bank transfer",
-        providerOrMethod: "Example Bank",
-        originCurrency: input.currency,
-        destinationCurrency: input.currency,
-        payoutMethod: "bank_deposit",
-        routeType: "bank",
-        description: "Synthetic route quote for the planner. Not a live provider price.",
-        isSynthetic: true,
-      },
-    });
-    await prisma.routeQuote.create({
-      data: {
-        routeId: route.id,
-        sendAmountMinor: 15000,
-        feeMinor: 250,
-        networkFeeMinor: 0,
-        exchangeRate: "1",
-        expectedReceivedMinor: 14750,
-        estimatedDeliveryHours: 24,
-        source: "demo",
-        evidenceQuality: "user_reported",
-        isSynthetic: true,
-        notes: "Synthetic quote. Replace with a real provider quote.",
-      },
-    });
-  } else {
-    await prisma.savingsGoal.create({
-      data: {
-        userId,
-        name: "Emergency fund",
-        targetMinor: input.safetyBufferMinor * 3,
-        currentMinor: 0,
-        currency: input.currency,
-        monthlyContributionMinor: Math.round(input.safetyBufferMinor * 0.2),
-        priority: "essential",
-      },
-    });
   }
 
   await prisma.auditEvent.create({
@@ -219,9 +107,9 @@ export async function completeOnboarding(userId: string, input: OnboardingInput)
       type: "onboarding.completed",
       entity: "User",
       entityId: userId,
-      payload: JSON.stringify({ includeExampleData: input.includeExampleData, currency: input.currency }),
+      payload: JSON.stringify({ currency: input.currency, obligations: input.obligations.length }),
     },
   });
 
-  return { ok: true, includeExampleData: input.includeExampleData };
+  return { ok: true };
 }

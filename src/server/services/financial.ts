@@ -54,7 +54,8 @@ function deriveExpectedIncome(transactions: FinancialContext["transactions"]) {
     const sorted = [...list].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
     const latest = sorted[sorted.length - 1];
     const amount = median(sorted.slice(-6).map((t) => t.amountMinor));
-    let intervalDays = 30;
+    // A single observed paycheck carries its declared cadence; more history overrides it.
+    let intervalDays = parseJson<{ cadenceDays?: number } | null>(latest.metadata, null)?.cadenceDays ?? 30;
     if (sorted.length >= 2) {
       const intervals: number[] = [];
       for (let i = 1; i < sorted.length; i++) {

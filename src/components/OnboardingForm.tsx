@@ -4,9 +4,14 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Plus, Trash2 } from "lucide-react";
 import { post, errorMessage } from "@/lib/client";
-import { Button, ErrorNote, Field, inputClass, selectClass, Toggle } from "@/components/ui";
+import { Button, ErrorNote, Field, inputClass, selectClass } from "@/components/ui";
+import { LogoMark } from "@/components/Logo";
 
-type Obligation = { name: string; amount: string; dueDate: string; priority: "essential" | "important" | "discretionary" };
+type Obligation = {
+  name: string; amount: string; dueDate: string;
+  priority: "essential" | "important" | "discretionary";
+  recurrence: "none" | "weekly" | "monthly" | "yearly";
+};
 
 function inDays(days: number) {
   const date = new Date();
@@ -22,9 +27,12 @@ export function OnboardingForm({ defaultName }: { defaultName: string }) {
   const [startingBalance, setStartingBalance] = useState("");
   const [safetyBuffer, setSafetyBuffer] = useState("100");
   const [riskPosture, setRiskPosture] = useState<"cautious" | "balanced" | "flexible">("balanced");
-  const [includeExampleData, setIncludeExampleData] = useState(true);
+  const [incomeLabel, setIncomeLabel] = useState("Paycheck");
+  const [incomeAmount, setIncomeAmount] = useState("");
+  const [incomeDate, setIncomeDate] = useState(inDays(-10));
+  const [incomeCadence, setIncomeCadence] = useState<"weekly" | "biweekly" | "monthly">("monthly");
   const [obligations, setObligations] = useState<Obligation[]>([
-    { name: "Rent", amount: "", dueDate: inDays(8), priority: "essential" },
+    { name: "Rent", amount: "", dueDate: inDays(8), priority: "essential", recurrence: "monthly" },
   ]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +52,9 @@ export function OnboardingForm({ defaultName }: { defaultName: string }) {
         obligations: obligations.filter((o) => o.name.trim() && o.amount.trim()),
         safetyBuffer: safetyBuffer || "0",
         riskPosture,
-        includeExampleData,
+        income: incomeAmount.trim()
+          ? { label: incomeLabel.trim() || "Paycheck", amount: incomeAmount, lastReceived: incomeDate, cadence: incomeCadence }
+          : undefined,
       });
       router.push("/app");
       router.refresh();
@@ -57,7 +67,7 @@ export function OnboardingForm({ defaultName }: { defaultName: string }) {
   return (
     <div className="mx-auto w-full max-w-2xl px-5 py-10 sm:py-16">
       <div className="flex items-center gap-3">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-lime text-[14px] font-bold text-[#0b1007]">L</span>
+        <LogoMark size={32} />
         <div>
           <p className="text-[10px] uppercase tracking-[0.16em] text-muted">LANDED setup · {defaultName}</p>
           <p className="text-[12px] text-cream">Step {step} of 2</p>
@@ -65,8 +75,8 @@ export function OnboardingForm({ defaultName }: { defaultName: string }) {
       </div>
 
       <div className="mt-6 flex gap-1.5">
-        <span className={`h-1 flex-1 rounded-full ${step >= 1 ? "bg-lime" : "bg-white/10"}`} />
-        <span className={`h-1 flex-1 rounded-full ${step >= 2 ? "bg-lime" : "bg-white/10"}`} />
+        <span className={`h-1 flex-1 rounded-full ${step >= 1 ? "bg-lime" : "bg-black/10"}`} />
+        <span className={`h-1 flex-1 rounded-full ${step >= 2 ? "bg-lime" : "bg-black/10"}`} />
       </div>
 
       {step === 1 ? (
@@ -95,6 +105,31 @@ export function OnboardingForm({ defaultName }: { defaultName: string }) {
                 <input className={inputClass} inputMode="decimal" placeholder="100.00" value={safetyBuffer} onChange={(e) => setSafetyBuffer(e.target.value)} />
               </Field>
             </div>
+            <div className="rounded-xl border border-black/[0.08] bg-black/[0.02] p-4">
+              <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted">Your income (optional)</p>
+              <p className="mt-1 text-[11.5px] leading-relaxed text-muted/80">
+                Your most recent paycheck lets LANDED forecast the next one. It is never counted as cash until it lands
+                unless you choose to.
+              </p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-4">
+                <Field label="Source">
+                  <input className={inputClass} value={incomeLabel} onChange={(e) => setIncomeLabel(e.target.value)} maxLength={60} />
+                </Field>
+                <Field label="Amount received">
+                  <input className={inputClass} inputMode="decimal" placeholder="3200.00" value={incomeAmount} onChange={(e) => setIncomeAmount(e.target.value)} />
+                </Field>
+                <Field label="Last received">
+                  <input className={inputClass} type="date" value={incomeDate} max={inDays(0)} onChange={(e) => setIncomeDate(e.target.value)} />
+                </Field>
+                <Field label="How often">
+                  <select className={selectClass} value={incomeCadence} onChange={(e) => setIncomeCadence(e.target.value as typeof incomeCadence)}>
+                    <option value="monthly">Monthly</option>
+                    <option value="biweekly">Every 2 weeks</option>
+                    <option value="weekly">Weekly</option>
+                  </select>
+                </Field>
+              </div>
+            </div>
             <Field label="Risk posture" hint="Cautious keeps a larger reserve. Flexible accepts more timing risk.">
               <select className={selectClass} value={riskPosture} onChange={(e) => setRiskPosture(e.target.value as typeof riskPosture)}>
                 <option value="cautious">Cautious — protect first</option>
@@ -102,14 +137,6 @@ export function OnboardingForm({ defaultName }: { defaultName: string }) {
                 <option value="flexible">Flexible — optimize for the goal</option>
               </select>
             </Field>
-            <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] px-4">
-              <Toggle
-                checked={includeExampleData}
-                onChange={setIncludeExampleData}
-                label="Add clearly labelled example data"
-                description="Creates synthetic accounts, bills, and one demo route so you can see the full loop. Every record is marked synthetic."
-              />
-            </div>
           </div>
 
           <div className="mt-8 flex justify-end">
@@ -123,13 +150,13 @@ export function OnboardingForm({ defaultName }: { defaultName: string }) {
           <p className="text-[11px] uppercase tracking-[0.18em] text-lime">The obligations</p>
           <h1 className="mt-3 font-display text-[40px] leading-[1.05] text-cream sm:text-[48px]">What lands before you do?</h1>
           <p className="mt-3 max-w-lg text-[13px] leading-6 text-muted">
-            Add bills that must be covered. Only essential and important obligations reduce safe-to-move. Skip this if
-            you added example data.
+            Add bills that must be covered. Only essential and important obligations reduce safe-to-move. You can add
+            more, import a CSV, or connect a Sui wallet later.
           </p>
 
           <div className="mt-8 space-y-3">
             {obligations.map((row, index) => (
-              <div key={index} className="grid gap-2 rounded-xl border border-white/[0.08] bg-white/[0.02] p-3 sm:grid-cols-[1.4fr_1fr_1fr_0.9fr_auto] sm:items-end">
+              <div key={index} className="grid gap-2 rounded-xl border border-black/[0.08] bg-black/[0.02] p-3 sm:grid-cols-[1.3fr_0.9fr_1fr_0.9fr_0.9fr_auto] sm:items-end">
                 <Field label={index === 0 ? "Name" : " "}>
                   <input className={inputClass} value={row.name} onChange={(e) => updateObligation(index, { name: e.target.value })} placeholder="Rent" />
                 </Field>
@@ -146,6 +173,14 @@ export function OnboardingForm({ defaultName }: { defaultName: string }) {
                     <option value="discretionary">Optional</option>
                   </select>
                 </Field>
+                <Field label={index === 0 ? "Repeats" : " "}>
+                  <select className={selectClass} value={row.recurrence} onChange={(e) => updateObligation(index, { recurrence: e.target.value as Obligation["recurrence"] })}>
+                    <option value="monthly">Monthly</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="yearly">Yearly</option>
+                    <option value="none">Once</option>
+                  </select>
+                </Field>
                 <Button variant="ghost" size="sm" className="mb-0.5" onClick={() => setObligations((rows) => rows.filter((_, i) => i !== index))} aria-label="Remove obligation">
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -154,7 +189,7 @@ export function OnboardingForm({ defaultName }: { defaultName: string }) {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setObligations((rows) => [...rows, { name: "", amount: "", dueDate: inDays(15), priority: "important" }])}
+              onClick={() => setObligations((rows) => [...rows, { name: "", amount: "", dueDate: inDays(15), priority: "important", recurrence: "monthly" }])}
             >
               <Plus className="h-3.5 w-3.5" /> Add another obligation
             </Button>

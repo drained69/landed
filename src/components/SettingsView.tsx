@@ -10,6 +10,7 @@ import {
 import { formatMinor } from "@/lib/money";
 import { del, errorMessage, patch, post } from "@/lib/client";
 import { Badge, Button, Card, CardHeader, ErrorNote, Field, inputClass, selectClass, Toggle } from "@/components/ui";
+import { AccountSecurity } from "@/components/AccountSecurity";
 
 type Account = { id: string; name: string; accountType: string; currency: string; balanceMinor: number; isLiquid: boolean; includeInSafeToMove: boolean; verificationStatus: string; balanceSource: string; isSynthetic: boolean; walletAddress: string | null; lastSyncedAt: string | Date | null };
 type Commitment = { id: string; name: string; amountMinor: number; currency: string; dueDate: string | Date; recurrence: string; priority: string; status: string; isSynthetic: boolean };
@@ -240,7 +241,7 @@ export function SettingsView({
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-2 border-b border-white/[0.07]">
+      <div className="flex flex-wrap gap-2 border-b border-black/[0.07]">
         {([
           ["profile", "Profile & safety"],
           ["money", "Money"],
@@ -259,7 +260,7 @@ export function SettingsView({
         <div className="grid gap-4 lg:grid-cols-2">
           <Card>
             <CardHeader title="Profile" subtitle="The base currency and buffer feed every decision." right={<Save className="h-4 w-4 text-muted" />} />
-            <div className="space-y-4 border-t border-white/[0.06] px-5 py-4">
+            <div className="space-y-4 border-t border-black/[0.06] px-5 py-4">
               <Field label="Name"><input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} /></Field>
               <Field label="Email"><input className={inputClass} value={user.email} disabled /></Field>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -283,23 +284,24 @@ export function SettingsView({
           <div className="space-y-4">
             <Card>
               <CardHeader title="Honesty state" subtitle="What is real on this deployment right now." />
-              <div className="space-y-3 border-t border-white/[0.06] px-5 py-4">
+              <div className="space-y-3 border-t border-black/[0.06] px-5 py-4">
                 <div className="flex items-center justify-between text-[11px]"><span className="text-muted">Dataset</span><Badge tone={user.isDemo ? "amber" : "lime"}>{user.isDemo ? "Synthetic demo" : "Your records"}</Badge></div>
                 <div className="flex items-center justify-between text-[11px]"><span className="text-muted">Tatum Sui</span><Badge tone={integrations.tatum.configured ? "lime" : "amber"}>{integrations.tatum.configured ? (integrations.tatum.reachable ? "reachable" : "configured · error") : "not configured"}</Badge></div>
                 <div className="flex items-center justify-between text-[11px]"><span className="text-muted">Walrus Memory</span><Badge tone={integrations.walrus.configured ? "lime" : "amber"}>{integrations.walrus.configured ? (integrations.walrus.reachable ? "reachable" : "configured · error") : "not configured"}</Badge></div>
                 <div className="flex items-center justify-between text-[11px]"><span className="text-muted">AI explanation layer</span><Badge tone={integrations.ai.configured ? "lime" : "muted"}>{integrations.ai.configured ? "configured" : "off"}</Badge></div>
-                <p className="border-t border-white/[0.07] pt-3 text-[9.5px] leading-relaxed text-muted/70">Arithmetic never depends on the AI layer. Disabling it changes explanations, not decisions.</p>
+                <p className="border-t border-black/[0.07] pt-3 text-[9.5px] leading-relaxed text-muted/70">Arithmetic never depends on the AI layer. Disabling it changes explanations, not decisions.</p>
               </div>
             </Card>
 
             <Card>
-              <CardHeader title="Memory namespace" subtitle="Derived server-side from your user ID. Never accepted from a request." />
-              <div className="border-t border-white/[0.06] px-5 py-4">
-                <p className="break-all rounded-lg bg-black/30 p-2.5 font-mono text-[10px] text-lime/70">{memoryNamespace}</p>
+              <CardHeader title="Memory namespace" subtitle="Derived server-side from your sign-in email (hashed), so your memory follows you to any device. Never accepted from a request." />
+              <div className="border-t border-black/[0.06] px-5 py-4">
+                <p className="break-all rounded-lg bg-black/[0.04] p-2.5 font-mono text-[10px] text-lime/70">{memoryNamespace}</p>
                 <p className="mt-2 text-[9.5px] leading-relaxed text-muted/70">The database remains LANDED&apos;s authorization boundary. A Walrus delegate key can read the namespace; it cannot bypass ownership checks here.</p>
               </div>
             </Card>
           </div>
+          <AccountSecurity email={user.email} isDemo={user.isDemo} />
         </div>
       ) : null}
 
@@ -307,7 +309,7 @@ export function SettingsView({
         <div className="space-y-4">
           <Card>
             <CardHeader title="Accounts" subtitle="Balances are authoritative. A recorded transaction does not silently adjust them." right={<Badge tone="muted">{accounts.length}</Badge>} />
-            <div className="divide-y divide-white/[0.06] border-t border-white/[0.06]">
+            <div className="divide-y divide-black/[0.06] border-t border-black/[0.06]">
               {accounts.map((account) => (
                 <div key={account.id} className="px-5 py-4">
                   <div className="flex flex-wrap items-center gap-2">
@@ -321,14 +323,14 @@ export function SettingsView({
                       <Field label="Balance"><input className={`${inputClass} h-9`} inputMode="decimal" value={balances[account.id] ?? ""} onChange={(e) => setBalances((prev) => ({ ...prev, [account.id]: e.target.value }))} /></Field>
                     </div>
                     <Button size="sm" variant="secondary" onClick={() => saveAccount(account)} loading={busy === account.id}>Save</Button>
-                    <label className="flex items-center gap-1.5 text-[10px] text-muted"><input type="checkbox" checked={account.isLiquid} onChange={(e) => toggleAccount(account, "isLiquid", e.target.checked)} className="accent-[#c9f76f]" /> Liquid</label>
-                    <label className="flex items-center gap-1.5 text-[10px] text-muted"><input type="checkbox" checked={account.includeInSafeToMove} onChange={(e) => toggleAccount(account, "includeInSafeToMove", e.target.checked)} className="accent-[#c9f76f]" /> In safe-to-move</label>
+                    <label className="flex items-center gap-1.5 text-[10px] text-muted"><input type="checkbox" checked={account.isLiquid} onChange={(e) => toggleAccount(account, "isLiquid", e.target.checked)} className="accent-[#2e7d4f]" /> Liquid</label>
+                    <label className="flex items-center gap-1.5 text-[10px] text-muted"><input type="checkbox" checked={account.includeInSafeToMove} onChange={(e) => toggleAccount(account, "includeInSafeToMove", e.target.checked)} className="accent-[#2e7d4f]" /> In safe-to-move</label>
                     <button type="button" onClick={() => removeAccount(account)} className="ml-auto text-muted transition hover:text-red" aria-label={`Delete ${account.name}`}><Trash2 className="h-3.5 w-3.5" /></button>
                   </div>
                 </div>
               ))}
             </div>
-            <div className="border-t border-white/[0.06] px-5 py-4">
+            <div className="border-t border-black/[0.06] px-5 py-4">
               <p className="text-[10px] uppercase tracking-[0.11em] text-muted">Add an account</p>
               <div className="mt-3 grid gap-2 sm:grid-cols-5">
                 <input className={`${inputClass} h-9`} placeholder="Name" value={newAccount.name} onChange={(e) => setNewAccount({ ...newAccount, name: e.target.value })} />
@@ -345,7 +347,7 @@ export function SettingsView({
           <div className="grid gap-4 lg:grid-cols-2">
             <Card>
               <CardHeader title="Bills & commitments" subtitle="Essential and important obligations reduce safe-to-move." right={<Badge tone="muted">{commitments.length}</Badge>} />
-              <div className="max-h-[380px] divide-y divide-white/[0.06] overflow-y-auto border-t border-white/[0.06]">
+              <div className="max-h-[380px] divide-y divide-black/[0.06] overflow-y-auto border-t border-black/[0.06]">
                 {commitments.map((bill) => (
                   <div key={bill.id} className="flex items-center gap-2 px-5 py-3">
                     <div className="min-w-0 flex-1">
@@ -358,7 +360,7 @@ export function SettingsView({
                   </div>
                 ))}
               </div>
-              <div className="border-t border-white/[0.06] px-5 py-4">
+              <div className="border-t border-black/[0.06] px-5 py-4">
                 <div className="grid gap-2 sm:grid-cols-2">
                   <input className={`${inputClass} h-9`} placeholder="Bill name" value={newBill.name} onChange={(e) => setNewBill({ ...newBill, name: e.target.value })} />
                   <input className={`${inputClass} h-9`} placeholder="Amount" inputMode="decimal" value={newBill.amount} onChange={(e) => setNewBill({ ...newBill, amount: e.target.value })} />
@@ -376,7 +378,7 @@ export function SettingsView({
 
             <Card>
               <CardHeader title="Savings goals" subtitle="Monthly contributions are reserved in the 45-day simulation." right={<Badge tone="muted">{goals.length}</Badge>} />
-              <div className="divide-y divide-white/[0.06] border-t border-white/[0.06]">
+              <div className="divide-y divide-black/[0.06] border-t border-black/[0.06]">
                 {goals.map((goal) => (
                   <div key={goal.id} className="px-5 py-3">
                     <div className="flex items-center gap-2">
@@ -384,7 +386,7 @@ export function SettingsView({
                       <span className="text-[9.5px] text-muted">{formatMinor(goal.currentMinor, goal.currency)} / {formatMinor(goal.targetMinor, goal.currency)}</span>
                       <button type="button" onClick={() => removeGoal(goal)} className="text-muted transition hover:text-red" aria-label={`Delete ${goal.name}`}><Trash2 className="h-3.5 w-3.5" /></button>
                     </div>
-                    <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full bg-lime" style={{ width: `${Math.min(100, (goal.currentMinor / Math.max(1, goal.targetMinor)) * 100)}%` }} /></div>
+                    <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-black/[0.06]"><div className="h-full bg-lime" style={{ width: `${Math.min(100, (goal.currentMinor / Math.max(1, goal.targetMinor)) * 100)}%` }} /></div>
                     <div className="mt-2 flex items-center gap-2">
                       <input className={`${inputClass} h-8 w-28 text-[11px]`} placeholder="Contribute" inputMode="decimal" value={contributions[goal.id] ?? ""} onChange={(e) => setContributions((prev) => ({ ...prev, [goal.id]: e.target.value }))} />
                       <Button size="sm" variant="secondary" onClick={() => contribute(goal)} loading={busy === goal.id} disabled={!contributions[goal.id]}>Contribute</Button>
@@ -393,7 +395,7 @@ export function SettingsView({
                   </div>
                 ))}
               </div>
-              <div className="border-t border-white/[0.06] px-5 py-4">
+              <div className="border-t border-black/[0.06] px-5 py-4">
                 <div className="grid gap-2 sm:grid-cols-2">
                   <input className={`${inputClass} h-9`} placeholder="Goal name" value={newGoal.name} onChange={(e) => setNewGoal({ ...newGoal, name: e.target.value })} />
                   <input className={`${inputClass} h-9`} placeholder="Target" inputMode="decimal" value={newGoal.target} onChange={(e) => setNewGoal({ ...newGoal, target: e.target.value })} />
@@ -424,7 +426,7 @@ export function SettingsView({
                 <Button size="sm" variant={route.isActive ? "secondary" : "outline"} onClick={() => toggleRoute(route)} loading={busy === route.id}>{route.isActive ? "Pause route" : "Activate route"}</Button>
               </div>
               {route.quotes.length > 0 ? (
-                <div className="border-t border-white/[0.06] px-5 py-3">
+                <div className="border-t border-black/[0.06] px-5 py-3">
                   <p className="text-[9px] uppercase tracking-[0.1em] text-muted">Recent quotes</p>
                   <div className="mt-2 space-y-1.5">
                     {route.quotes.map((quote) => (
@@ -438,8 +440,8 @@ export function SettingsView({
                     ))}
                   </div>
                 </div>
-              ) : <p className="border-t border-white/[0.06] px-5 py-3 text-[10px] text-amber/70">No quote yet. This route is ignored by ranking until you add one.</p>}
-              <div className="border-t border-white/[0.06] px-5 py-3">
+              ) : <p className="border-t border-black/[0.06] px-5 py-3 text-[10px] text-amber/70">No quote yet. This route is ignored by ranking until you add one.</p>}
+              <div className="border-t border-black/[0.06] px-5 py-3">
                 <div className="grid gap-2 sm:grid-cols-6">
                   <input className={`${inputClass} h-9`} placeholder="Send" inputMode="decimal" value={quoteForms[route.id]?.amount ?? ""} onChange={(e) => updateQuote(route.id, { amount: e.target.value })} />
                   <input className={`${inputClass} h-9`} placeholder="Fee" inputMode="decimal" value={quoteForms[route.id]?.fee ?? ""} onChange={(e) => updateQuote(route.id, { fee: e.target.value })} />
@@ -455,7 +457,7 @@ export function SettingsView({
           ))}
           <Card>
             <CardHeader title="Add a route" subtitle="Add the provider or method, then enter your own quote. LANDED does not invent live prices." />
-            <div className="grid gap-2 border-t border-white/[0.06] px-5 py-4 sm:grid-cols-4">
+            <div className="grid gap-2 border-t border-black/[0.06] px-5 py-4 sm:grid-cols-4">
               <input className={`${inputClass} h-9`} placeholder="Name" value={newRoute.name} onChange={(e) => setNewRoute({ ...newRoute, name: e.target.value })} />
               <input className={`${inputClass} h-9`} placeholder="Provider or method" value={newRoute.providerOrMethod} onChange={(e) => setNewRoute({ ...newRoute, providerOrMethod: e.target.value })} />
               <select className={`${inputClass} h-9`} value={newRoute.payoutMethod} onChange={(e) => setNewRoute({ ...newRoute, payoutMethod: e.target.value })}>
@@ -475,13 +477,13 @@ export function SettingsView({
         <div className="grid gap-4 lg:grid-cols-2">
           <Card>
             <CardHeader title="Tatum · Sui Mainnet" subtitle="Verified onchain reads only. No public-RPC substitution." right={<Landmark className="h-4 w-4 text-muted" />} />
-            <div className="space-y-3 border-t border-white/[0.06] px-5 py-4">
+            <div className="space-y-3 border-t border-black/[0.06] px-5 py-4">
               <div className="flex items-center justify-between text-[11px]"><span className="text-muted">API key</span><Badge tone={integrations.tatum.configured ? "lime" : "amber"}>{integrations.tatum.configured ? "configured" : "missing"}</Badge></div>
               <div className="flex items-center justify-between text-[11px]"><span className="text-muted">RPC reachable</span><span className={integrations.tatum.reachable ? "text-lime" : "text-amber"}>{integrations.tatum.reachable ? "yes" : "no"}</span></div>
               <div className="flex items-center justify-between text-[11px]"><span className="text-muted">Network</span><span className="text-cream/80">{integrations.tatum.network ?? "mainnet"}</span></div>
               <div className="flex items-center justify-between gap-4 text-[11px]"><span className="text-muted">Checkpoint</span><span className="truncate font-mono text-[9.5px] text-cream/70">{integrations.tatum.checkpoint ?? "—"}</span></div>
               {integrations.tatum.error ? <p className="rounded-lg bg-amber/[0.05] px-3 py-2 text-[10px] leading-relaxed text-amber/85">{integrations.tatum.error}</p> : null}
-              <div className="space-y-2 border-t border-white/[0.07] pt-3">
+              <div className="space-y-2 border-t border-black/[0.07] pt-3">
                 <Field label="Sui wallet address"><input className={inputClass} value={walletAddress} onChange={(e) => setWalletAddress(e.target.value)} placeholder="0x… 64 hex characters" /></Field>
                 <div className="flex gap-2">
                   <input className={inputClass} value={walletLabel} onChange={(e) => setWalletLabel(e.target.value)} placeholder="Label" />
@@ -489,7 +491,7 @@ export function SettingsView({
                   <Button size="sm" onClick={syncWallet} loading={busy === "wallet-sync"} disabled={!walletAddress}><Link2 className="h-3 w-3" /> Sync</Button>
                 </div>
               </div>
-              <div className="space-y-2 border-t border-white/[0.07] pt-3">
+              <div className="space-y-2 border-t border-black/[0.07] pt-3">
                 <div className="flex items-center justify-between text-[11px]"><span className="text-muted">Data API · exchange rates</span><Badge tone={integrations.rates.reachable ? "lime" : "amber"}>{integrations.rates.configured ? (integrations.rates.reachable ? "reachable" : "error") : "not configured"}</Badge></div>
                 {integrations.rates.sample ? (
                   <p className="text-[10.5px] text-cream/80">1 {integrations.rates.sample.symbol} = {integrations.rates.sample.value} {integrations.rates.sample.basePair} <span className="text-muted">· {integrations.rates.sample.source} · {new Date(integrations.rates.sample.timestamp).toLocaleString("en-US")}</span></p>
@@ -509,14 +511,14 @@ export function SettingsView({
 
           <Card>
             <CardHeader title="Walrus Memory" subtitle="Lessons become persistent only when a blob ID is returned." right={<Database className="h-4 w-4 text-muted" />} />
-            <div className="space-y-3 border-t border-white/[0.06] px-5 py-4">
+            <div className="space-y-3 border-t border-black/[0.06] px-5 py-4">
               <div className="flex items-center justify-between text-[11px]"><span className="text-muted">Credentials</span><Badge tone={integrations.walrus.configured ? "lime" : "amber"}>{integrations.walrus.configured ? "configured" : "missing"}</Badge></div>
               <div className="flex items-center justify-between text-[11px]"><span className="text-muted">Relayer</span><span className={integrations.walrus.reachable ? "text-lime" : "text-amber"}>{integrations.walrus.reachable ? "reachable" : "not reachable"}</span></div>
               <div className="flex items-center justify-between text-[11px]"><span className="text-muted">Write ready</span><span className="text-cream/80">{integrations.walrus.writeReady == null ? "unknown" : integrations.walrus.writeReady ? "yes" : "no"}</span></div>
               <div className="flex items-center justify-between gap-4 text-[11px]"><span className="text-muted">Server</span><span className="truncate font-mono text-[9.5px] text-cream/70">{integrations.walrus.serverUrl}</span></div>
               {integrations.walrus.missing?.length ? <p className="rounded-lg bg-amber/[0.05] px-3 py-2 text-[10px] leading-relaxed text-amber/85">Missing server env: {integrations.walrus.missing.join(", ")}. Lessons remain in the local rehearsal ledger and are labelled as such.</p> : null}
               {integrations.walrus.error ? <p className="rounded-lg bg-amber/[0.05] px-3 py-2 text-[10px] leading-relaxed text-amber/85">{integrations.walrus.error}</p> : null}
-              <div className="rounded-lg bg-white/[0.02] p-3">
+              <div className="rounded-lg bg-black/[0.02] p-3">
                 <p className="text-[9px] uppercase tracking-[0.1em] text-muted">Your namespace</p>
                 <p className="mt-1 break-all font-mono text-[9.5px] text-lime/70">{memoryNamespace}</p>
               </div>
@@ -526,7 +528,7 @@ export function SettingsView({
 
           <Card className="lg:col-span-2">
             <CardHeader title="Optional AI explanation layer" subtitle={integrations.ai.note} />
-            <div className="border-t border-white/[0.06] px-5 py-4">
+            <div className="border-t border-black/[0.06] px-5 py-4">
               <div className="flex items-center gap-3">
                 <Badge tone={integrations.ai.configured ? "lime" : "muted"}>{integrations.ai.configured ? "configured" : "disabled"}</Badge>
                 <p className="text-[10px] leading-relaxed text-muted">Set AI_BASE_URL, AI_API_KEY, and AI_MODEL on the server to enable plain-language explanations. It never computes amounts, ranks routes, or writes memory.</p>
@@ -540,15 +542,15 @@ export function SettingsView({
         <div className="grid gap-4 lg:grid-cols-2">
           <Card>
             <CardHeader title="Export everything" subtitle="JSON with accounts, transactions, bills, goals, routes, decisions, outcomes, memories, and consents." right={<Download className="h-4 w-4 text-muted" />} />
-            <div className="border-t border-white/[0.06] px-5 py-4">
-              <a href="/api/export" className="inline-flex h-10 items-center gap-2 rounded-full bg-lime px-4 text-[12px] font-medium text-[#0b1007] transition hover:bg-[#d8ff8e]"><Download className="h-3.5 w-3.5" /> Download JSON</a>
+            <div className="border-t border-black/[0.06] px-5 py-4">
+              <a href="/api/export" className="inline-flex h-10 items-center gap-2 rounded-full bg-ink px-4 text-[12px] font-medium text-white transition hover:bg-black/80"><Download className="h-3.5 w-3.5" /> Download JSON</a>
               <p className="mt-3 text-[9.5px] leading-relaxed text-muted/70">Walrus blobs already written cannot be deleted by this application. The export notes this explicitly.</p>
             </div>
           </Card>
 
           <Card>
             <CardHeader title="Consent" subtitle="Opt in to community route statistics. Nothing is shared without this." right={<Globe2 className="h-4 w-4 text-muted" />} />
-            <div className="divide-y divide-white/[0.06] border-t border-white/[0.06] px-5">
+            <div className="divide-y divide-black/[0.06] border-t border-black/[0.06] px-5">
               <Toggle checked={consentState.community_route_intelligence ?? false} onChange={(next) => toggleConsent("community_route_intelligence", next)} disabled={busy === "community_route_intelligence"} label="Community route intelligence" description="De-identified cost and delivery error only. Minimum 3 contributors and 5 observations." />
               <Toggle checked={consentState.anonymous_research ?? false} onChange={(next) => toggleConsent("anonymous_research", next)} disabled={busy === "anonymous_research"} label="Anonymous research" description="Aggregated pattern research. No individual records." />
               <Toggle checked={consentState.product_updates ?? false} onChange={(next) => toggleConsent("product_updates", next)} disabled={busy === "product_updates"} label="Product updates" description="Occasional product email. No financial data." />
@@ -557,13 +559,13 @@ export function SettingsView({
 
           <Card className="lg:col-span-2">
             <CardHeader title="Data boundaries" subtitle="A plain-language summary of what this deployment stores." />
-            <div className="grid gap-3 border-t border-white/[0.06] px-5 py-4 sm:grid-cols-3">
+            <div className="grid gap-3 border-t border-black/[0.06] px-5 py-4 sm:grid-cols-3">
               {[
                 ["Server database", "Owns authorization and the authoritative typed rules. Every query is filtered by your user ID."],
-                ["Walrus Memory", "Stores confirmed, portable lesson text in a per-user namespace. A blob is public and cannot be un-written."],
+                ["Walrus Memory", "Stores confirmed lessons, their updates and (if you opt in) your decision journal in your account's namespace. Blobs are encrypted by Walrus Memory and permanent: no app can delete them."],
                 ["No bank connection", "Balances are self-reported, CSV-imported, or verified onchain. Nothing is pulled from a bank without an explicit integration."],
               ].map(([title, body]) => (
-                <div key={title} className="rounded-xl border border-white/[0.07] bg-white/[0.015] p-3.5">
+                <div key={title} className="rounded-xl border border-black/[0.07] bg-black/[0.015] p-3.5">
                   <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.1em] text-muted"><CircleAlert className="h-3 w-3" /> {title}</p>
                   <p className="mt-2 text-[10.5px] leading-relaxed text-muted">{body}</p>
                 </div>

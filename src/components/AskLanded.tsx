@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { ArrowUp, Brain, Sparkles, X } from "lucide-react";
 import { post, errorMessage } from "@/lib/client";
 import { Badge, ErrorNote } from "@/components/ui";
+import { LogoMark } from "@/components/Logo";
 
 type AskCard = { label: string; value: string; detail?: string; tone?: "default" | "success" | "warning" };
 type AskMemory = { id: string; summary: string; blobId: string | null; confidence: number };
@@ -54,7 +55,7 @@ export function AskLanded() {
       <button
         type="button"
         onClick={() => { setOpen(true); setTimeout(() => inputRef.current?.focus(), 80); }}
-        className="inline-flex h-9 items-center gap-2 rounded-full border border-lime/25 bg-lime/[0.07] px-3.5 text-[12px] text-lime transition hover:bg-lime/[0.12]"
+        className="chip h-9 px-3.5 text-[12px] font-medium text-cream transition hover:border-black/15"
       >
         <Sparkles className="h-3.5 w-3.5" />
         <span className="hidden sm:inline">Ask LANDED</span>
@@ -63,16 +64,16 @@ export function AskLanded() {
 
       {open ? (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/55 backdrop-blur-sm" onMouseDown={(e) => { if (e.target === e.currentTarget) setOpen(false); }}>
-          <aside className="flex h-full w-full max-w-md flex-col border-l border-white/10 bg-[#0c0f0b] shadow-2xl animate-rise">
-            <div className="flex items-center justify-between border-b border-white/[0.07] px-5 py-4">
+          <aside className="flex h-full w-full max-w-md flex-col border-l border-black/10 bg-[#f1f1ee] shadow-2xl animate-rise">
+            <div className="flex items-center justify-between border-b border-black/[0.07] px-5 py-4">
               <div className="flex items-center gap-2.5">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-lime text-[12px] font-bold text-[#0b1007]">L</span>
+                <LogoMark size={28} />
                 <div>
                   <p className="text-[13px] text-cream">Ask LANDED</p>
                   <p className="text-[10px] text-muted">Deterministic answers · memory included</p>
                 </div>
               </div>
-              <button type="button" onClick={() => setOpen(false)} className="rounded-lg p-1.5 text-muted transition hover:bg-white/[0.05] hover:text-cream" aria-label="Close">
+              <button type="button" onClick={() => setOpen(false)} className="rounded-lg p-1.5 text-muted transition hover:bg-black/[0.05] hover:text-cream" aria-label="Close">
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -80,14 +81,14 @@ export function AskLanded() {
             <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5">
               {!response && !loading ? (
                 <>
-                  <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 text-[12px] leading-relaxed text-muted">
+                  <div className="rounded-xl border border-black/[0.07] bg-black/[0.02] p-4 text-[12px] leading-relaxed text-muted">
                     I can explain safe-to-move, compare routes, and show what changed after a confirmed outcome. I use
                     the same deterministic engine as the rest of LANDED — not freehand arithmetic.
                   </div>
                   <p className="text-[10px] uppercase tracking-[0.14em] text-muted/70">Try one</p>
                   <div className="space-y-2">
                     {starters.map((starter) => (
-                      <button key={starter} type="button" onClick={() => ask(starter)} className="w-full rounded-xl border border-white/[0.08] bg-white/[0.02] px-3.5 py-2.5 text-left text-[12px] text-cream/80 transition hover:border-lime/25 hover:text-cream">
+                      <button key={starter} type="button" onClick={() => ask(starter)} className="w-full rounded-xl border border-black/[0.08] bg-black/[0.02] px-3.5 py-2.5 text-left text-[12px] text-cream/80 transition hover:border-lime/25 hover:text-cream">
                         {starter}
                       </button>
                     ))}
@@ -96,14 +97,14 @@ export function AskLanded() {
               ) : null}
 
               {message ? (
-                <div className="ml-auto max-w-[85%] rounded-2xl rounded-br-sm bg-[#232b1f] px-3.5 py-2.5 text-[12px] text-cream">{message}</div>
+                <div className="ml-auto max-w-[85%] rounded-2xl rounded-br-sm bg-black/[0.06] px-3.5 py-2.5 text-[12px] text-cream">{message}</div>
               ) : null}
 
               {loading ? (
                 <div className="space-y-2">
-                  <div className="shimmer h-3 w-2/3 rounded bg-white/[0.05]" />
-                  <div className="shimmer h-3 w-1/2 rounded bg-white/[0.05]" />
-                  <div className="shimmer h-16 w-full rounded-xl bg-white/[0.04]" />
+                  <div className="shimmer h-3 w-2/3 rounded bg-black/[0.05]" />
+                  <div className="shimmer h-3 w-1/2 rounded bg-black/[0.05]" />
+                  <div className="shimmer h-16 w-full rounded-xl bg-black/[0.04]" />
                 </div>
               ) : null}
 
@@ -124,7 +125,7 @@ export function AskLanded() {
                   {response.cards?.length ? (
                     <div className="grid gap-2">
                       {response.cards.map((card) => (
-                        <div key={card.label} className={`rounded-xl border p-3 ${card.tone === "success" ? "border-lime/25 bg-lime/[0.05]" : card.tone === "warning" ? "border-amber/25 bg-amber/[0.05]" : "border-white/[0.07] bg-white/[0.02]"}`}>
+                        <div key={card.label} className={`rounded-xl border p-3 ${card.tone === "success" ? "border-lime/25 bg-lime/[0.05]" : card.tone === "warning" ? "border-amber/25 bg-amber/[0.05]" : "border-black/[0.07] bg-black/[0.02]"}`}>
                           <p className="text-[9.5px] uppercase tracking-[0.12em] text-muted">{card.label}</p>
                           <p className={`mt-1 text-[14px] tabular-nums ${card.tone === "success" ? "text-lime" : card.tone === "warning" ? "text-amber" : "text-cream"}`}>{card.value}</p>
                           {card.detail ? <p className="mt-1 text-[10.5px] leading-relaxed text-muted">{card.detail}</p> : null}
@@ -133,7 +134,7 @@ export function AskLanded() {
                     </div>
                   ) : null}
                   {response.memories?.length ? (
-                    <div className="rounded-xl border border-white/[0.07] p-3">
+                    <div className="rounded-xl border border-black/[0.07] p-3">
                       <p className="flex items-center gap-1.5 text-[9.5px] uppercase tracking-[0.12em] text-muted"><Brain className="h-3 w-3" /> Memory used</p>
                       <div className="mt-2 space-y-1.5">
                         {response.memories.map((memory) => (
@@ -146,7 +147,7 @@ export function AskLanded() {
                   {response.suggestions?.length ? (
                     <div className="flex flex-wrap gap-1.5 pt-1">
                       {response.suggestions.slice(0, 3).map((suggestion) => (
-                        <button key={suggestion} type="button" onClick={() => ask(suggestion)} className="rounded-full border border-white/[0.08] px-2.5 py-1 text-[10px] text-muted transition hover:border-lime/25 hover:text-lime">
+                        <button key={suggestion} type="button" onClick={() => ask(suggestion)} className="rounded-full border border-black/[0.08] px-2.5 py-1 text-[10px] text-muted transition hover:border-lime/25 hover:text-lime">
                           {suggestion}
                         </button>
                       ))}
@@ -158,9 +159,9 @@ export function AskLanded() {
 
             <form
               onSubmit={(e) => { e.preventDefault(); ask(message); }}
-              className="border-t border-white/[0.07] p-3"
+              className="border-t border-black/[0.07] p-3"
             >
-              <div className="flex items-center gap-2 rounded-xl border border-[#333d31] bg-[#080b07] px-3 py-2 focus-within:border-lime/40">
+              <div className="flex items-center gap-2 rounded-xl border border-black/[0.12] bg-[#f1f1ee] px-3 py-2 focus-within:border-lime/40">
                 <input
                   ref={inputRef}
                   value={message}
@@ -169,7 +170,7 @@ export function AskLanded() {
                   className="flex-1 bg-transparent text-[12.5px] text-cream outline-none placeholder:text-muted/50"
                   maxLength={1000}
                 />
-                <button type="submit" disabled={!message.trim() || loading} className="flex h-7 w-7 items-center justify-center rounded-full bg-lime text-[#0b1007] disabled:opacity-30" aria-label="Send">
+                <button type="submit" disabled={!message.trim() || loading} className="flex h-7 w-7 items-center justify-center rounded-full bg-ink text-white disabled:opacity-30" aria-label="Send">
                   <ArrowUp className="h-3.5 w-3.5" />
                 </button>
               </div>

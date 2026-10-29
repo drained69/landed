@@ -89,7 +89,7 @@ Each confirmed record shows memory ID, category, write status, blob ID, source d
 
 ### Synthetic demo lessons
 
-Walrus blobs are public and permanent. Seeded lessons are synthetic, so backfill **skips them by default**. To populate a clearly labelled demo account:
+Walrus blobs are encrypted by Walrus Memory but permanent: they cannot be deleted. Seeded lessons are synthetic, so backfill **skips them by default**. To populate a clearly labelled demo account:
 
 ```bash
 pnpm walrus:backfill --include-synthetic --user=demo@landed.app

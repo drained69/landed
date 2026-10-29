@@ -10,6 +10,7 @@ import {
 import { del, post, errorMessage } from "@/lib/client";
 import { formatMinor } from "@/lib/money";
 import { Badge, Button, Card, CardHeader, ErrorNote, Field, inputClass, selectClass, Toggle } from "@/components/ui";
+import type { RouteComparison } from "@/lib/types";
 
 type DecisionType = "send" | "save" | "spend" | "affordability";
 
@@ -20,12 +21,6 @@ type Action = {
   adjustments: { code: string; label: string; detail: string; memoryId?: string; memoryBlobId?: string | null; deltaMinor?: number }[];
 };
 
-type RouteQuote = {
-  quoteId: string; routeName: string; providerOrMethod: string; payoutMethod: string; routeType?: string;
-  expectedReceivedMinor: number; totalCostMinor: number; estimatedDeliveryHours: number;
-  confidence: string; score: number; rank: number; adjustments: { label: string; delta: number }[];
-  effectiveCostPercent: number; reliabilityScore: number;
-};
 
 type GenerateResponse = {
   decision: { id: string; objective: string; createdAt: string; status: string; confidence: number };
@@ -39,7 +34,8 @@ type GenerateResponse = {
     };
     confidence: number;
     cashflow: { safeToMoveMinor: number; essentialCommitmentsMinor: number; effectiveSafetyBufferMinor: number; variableSpendReserveMinor: number; clearedLiquidMinor: number; appliedMemories: { id: string; summary: string }[]; effects: { code: string; label: string; memoryId: string }[]; missingInputs: string[] };
-    routeComparison: { corridor: string; quotes: RouteQuote[]; best: RouteQuote | null; excluded: { quoteId: string; reason: string }[]; notes: string[] };
+    // Same shape the route engine returns: each ranked entry wraps its quote.
+    routeComparison: RouteComparison;
   };
   retrieval: { mode: string; error: string | null; memories: { id: string; summary: string; blobId: string | null; confidence: number; writeStatus: string; rule: unknown }[] };
   diffs: { field: string; from: unknown; to: unknown; label: string }[];
@@ -147,13 +143,13 @@ export function PlanMove({ currency, routeCount }: { currency: string; routeCoun
         <Card>
           <CardHeader title="The move" subtitle="Amounts are parsed to integer minor units before any arithmetic." />
           <form onSubmit={generate} className="space-y-4 px-5 pb-5">
-            <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/[0.08] bg-white/[0.02] p-1 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-1 rounded-xl border border-black/[0.08] bg-black/[0.02] p-1 sm:grid-cols-4">
               {types.map((item) => (
                 <button
                   key={item.key}
                   type="button"
                   onClick={() => setType(item.key)}
-                  className={`rounded-lg px-2 py-2 text-[11px] transition ${type === item.key ? "bg-[#272f23] text-cream" : "text-muted hover:text-cream"}`}
+                  className={`rounded-lg px-2 py-2 text-[11px] transition ${type === item.key ? "bg-black/[0.06] text-cream" : "text-muted hover:text-cream"}`}
                   title={item.hint}
                 >
                   {item.label}
@@ -187,7 +183,7 @@ export function PlanMove({ currency, routeCount }: { currency: string; routeCoun
               </div>
             ) : null}
 
-            <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] px-4">
+            <div className="rounded-xl border border-black/[0.08] bg-black/[0.02] px-4">
               <Toggle
                 checked={includeIncome}
                 onChange={setIncludeIncome}
@@ -196,7 +192,7 @@ export function PlanMove({ currency, routeCount }: { currency: string; routeCoun
               />
             </div>
 
-            <div className="flex items-center justify-between rounded-lg bg-white/[0.02] px-3 py-2 text-[10.5px] text-muted">
+            <div className="flex items-center justify-between rounded-lg bg-black/[0.02] px-3 py-2 text-[10.5px] text-muted">
               <span className="flex items-center gap-1.5"><Route className="h-3 w-3" /> {routeCount} route{routeCount === 1 ? "" : "s"} with quotes</span>
               <Link href="/app/settings" className="text-lime/80 transition hover:text-lime">Manage routes</Link>
             </div>
@@ -221,7 +217,7 @@ export function PlanMove({ currency, routeCount }: { currency: string; routeCoun
               </p>
               <div className="mt-6 grid w-full max-w-sm grid-cols-3 gap-2 text-left">
                 {["Same input snapshot", "Only memory differs", "Typed rules, not vibes"].map((item) => (
-                  <div key={item} className="rounded-lg border border-white/[0.07] bg-white/[0.02] p-2.5 text-[10px] leading-relaxed text-muted">{item}</div>
+                  <div key={item} className="rounded-lg border border-black/[0.07] bg-black/[0.02] p-2.5 text-[10px] leading-relaxed text-muted">{item}</div>
                 ))}
               </div>
             </Card>
@@ -229,11 +225,11 @@ export function PlanMove({ currency, routeCount }: { currency: string; routeCoun
 
           {loading ? (
             <Card className="p-6">
-              <div className="shimmer h-6 w-1/2 rounded bg-white/[0.06]" />
-              <div className="mt-4 shimmer h-24 w-full rounded-xl bg-white/[0.04]" />
+              <div className="shimmer h-6 w-1/2 rounded bg-black/[0.06]" />
+              <div className="mt-4 shimmer h-24 w-full rounded-xl bg-black/[0.04]" />
               <div className="mt-3 grid grid-cols-2 gap-3">
-                <div className="shimmer h-16 rounded-xl bg-white/[0.04]" />
-                <div className="shimmer h-16 rounded-xl bg-white/[0.04]" />
+                <div className="shimmer h-16 rounded-xl bg-black/[0.04]" />
+                <div className="shimmer h-16 rounded-xl bg-black/[0.04]" />
               </div>
             </Card>
           ) : null}
@@ -241,7 +237,7 @@ export function PlanMove({ currency, routeCount }: { currency: string; routeCoun
           {result && action && baseline ? (
             <div className="space-y-4 animate-rise">
               <Card className="relative overflow-hidden">
-                <div className="absolute -right-16 -top-20 h-52 w-52 rounded-full bg-lime/[0.08] blur-3xl" />
+                <div className="absolute -right-16 -top-20 h-52 w-52 rounded-full bg-[#f6b897]/25 blur-3xl" />
                 <div className="relative p-5 sm:p-6">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge tone={riskTone[action.riskLevel] ?? "amber"}>{action.riskLevel} risk</Badge>
@@ -269,7 +265,7 @@ export function PlanMove({ currency, routeCount }: { currency: string; routeCoun
                     </div>
                   ) : null}
 
-                  <div className="mt-5 grid grid-cols-2 gap-3 border-t border-white/[0.07] pt-4">
+                  <div className="mt-5 grid grid-cols-2 gap-3 border-t border-black/[0.07] pt-4">
                     <div>
                       <p className="text-[9.5px] uppercase tracking-[0.11em] text-muted">Projected buffer after</p>
                       <p className={`mt-1 text-[17px] tabular-nums ${result.result.predicted.projectedBufferAfterMinor < 0 ? "text-red" : "text-cream"}`}>{formatMinor(result.result.predicted.projectedBufferAfterMinor, action.currency)}</p>
@@ -309,10 +305,10 @@ export function PlanMove({ currency, routeCount }: { currency: string; routeCoun
                   subtitle="Same balances, bills, and quotes. The only difference is the recalled lesson set."
                   right={<Badge tone={changed ? "amber" : "muted"}>{changed ? "changed" : "no change"}</Badge>}
                 />
-                <div className="grid gap-px border-t border-white/[0.06] bg-white/[0.06] sm:grid-cols-2">
-                  <div className="bg-[#11150f] p-4">
+                <div className="grid gap-px border-t border-black/[0.06] bg-black/[0.06] sm:grid-cols-2">
+                  <div className="bg-white p-4">
                     <p className="text-[9.5px] uppercase tracking-[0.12em] text-muted">Baseline</p>
-                    <p className="mt-2 text-[25px] tabular-nums text-muted line-through decoration-white/20">{formatMinor(baseline.amountMinor, baseline.currency)}</p>
+                    <p className="mt-2 text-[25px] tabular-nums text-muted line-through decoration-black/20">{formatMinor(baseline.amountMinor, baseline.currency)}</p>
                     <p className="mt-1 text-[10.5px] leading-relaxed text-muted">{baseline.headline}</p>
                   </div>
                   <div className="bg-lime/[0.035] p-4">
@@ -335,27 +331,27 @@ export function PlanMove({ currency, routeCount }: { currency: string; routeCoun
               subtitle={result.result.routeComparison.corridor ? `${result.result.routeComparison.corridor} · ranked on realized recipient amount, evidence, and speed` : "No eligible corridor"}
               right={<Badge tone="muted">{result.result.routeComparison.quotes.length} quoted</Badge>}
             />
-            <div className="border-t border-white/[0.06]">
+            <div className="border-t border-black/[0.06]">
               {result.result.routeComparison.quotes.length === 0 ? (
                 <p className="px-5 py-8 text-center text-[11.5px] text-muted">No route quote matches this corridor and amount. Add a user-entered quote in Settings.</p>
               ) : null}
-              {result.result.routeComparison.quotes.map((quote) => (
-                <div key={quote.quoteId} className={`flex flex-wrap items-center gap-3 px-5 py-3.5 ${quote.rank === 1 ? "bg-lime/[0.035]" : ""}`}>
-                  <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] ${quote.rank === 1 ? "bg-lime text-[#0b1007]" : "bg-white/[0.05] text-muted"}`}>{quote.rank}</span>
+              {result.result.routeComparison.quotes.map((ranked) => (
+                <div key={ranked.quote.quoteId} className={`flex flex-wrap items-center gap-3 px-5 py-3.5 ${ranked.rank === 1 ? "bg-lime/[0.035]" : ""}`}>
+                  <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] ${ranked.rank === 1 ? "bg-ink text-white" : "bg-black/[0.05] text-muted"}`}>{ranked.rank}</span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[12px] text-cream">{quote.routeName}</p>
-                    <p className="text-[10px] text-muted">{quote.payoutMethod.replaceAll("_", " ")} · {quote.estimatedDeliveryHours}h · score {(quote.score * 100).toFixed(0)}</p>
-                    {quote.adjustments.length > 0 ? <p className="mt-0.5 text-[9.5px] text-amber/80">{quote.adjustments.map((a) => a.label).join(" · ")}</p> : null}
+                    <p className="text-[12px] text-cream">{ranked.quote.routeName}</p>
+                    <p className="text-[10px] text-muted">{ranked.quote.payoutMethod.replaceAll("_", " ")} · {ranked.quote.estimatedDeliveryHours}h · score {(ranked.score * 100).toFixed(0)}</p>
+                    {ranked.adjustments.length > 0 ? <p className="mt-0.5 text-[9.5px] text-amber/80">{ranked.adjustments.map((a) => a.label).join(" · ")}</p> : null}
                   </div>
                   <div className="text-right">
-                    <p className="text-[12.5px] tabular-nums text-cream">{formatMinor(quote.expectedReceivedMinor, destinationCurrency)}</p>
-                    <p className="text-[9.5px] text-muted">cost {formatMinor(quote.totalCostMinor, currency)}</p>
+                    <p className="text-[12.5px] tabular-nums text-cream">{formatMinor(ranked.expectedReceivedMinor, destinationCurrency)}</p>
+                    <p className="text-[9.5px] text-muted">cost {formatMinor(ranked.totalCostMinor, currency)}</p>
                   </div>
                 </div>
               ))}
             </div>
             {result.result.routeComparison.notes.length > 0 ? (
-              <div className="border-t border-white/[0.06] px-5 py-3 text-[10px] leading-relaxed text-amber/80">{result.result.routeComparison.notes.join(" ")}</div>
+              <div className="border-t border-black/[0.06] px-5 py-3 text-[10px] leading-relaxed text-amber/80">{result.result.routeComparison.notes.join(" ")}</div>
             ) : null}
           </Card>
 
@@ -366,10 +362,10 @@ export function PlanMove({ currency, routeCount }: { currency: string; routeCoun
                 subtitle={result.retrieval.mode === "local_rehearsal" ? "Local rehearsal ledger — Walrus is not configured on this deployment." : result.retrieval.mode === "mixed" ? "Walrus recall with local fallback." : "Semantic recall from Walrus Memory."}
                 right={result.retrieval.mode === "walrus" ? <Badge tone="lime">Walrus</Badge> : <Badge tone="amber">Rehearsal</Badge>}
               />
-              <div className="space-y-2.5 border-t border-white/[0.06] px-5 py-4">
+              <div className="space-y-2.5 border-t border-black/[0.06] px-5 py-4">
                 {result.retrieval.memories.length === 0 ? <p className="text-[11px] text-muted">No applicable memory. The baseline and informed arms match.</p> : null}
                 {result.retrieval.memories.slice(0, 5).map((memory) => (
-                  <div key={memory.id} className="rounded-xl border border-white/[0.07] bg-white/[0.015] p-3">
+                  <div key={memory.id} className="rounded-xl border border-black/[0.07] bg-black/[0.015] p-3">
                     <div className="flex items-center gap-2">
                       <Brain className="h-3 w-3 text-lime" />
                       <span className="text-[9.5px] uppercase tracking-[0.1em] text-muted">{memory.writeStatus === "confirmed" ? "Walrus confirmed" : "local"}</span>
@@ -389,7 +385,7 @@ export function PlanMove({ currency, routeCount }: { currency: string; routeCoun
                 subtitle="What the engine counted, and what it refused to count."
                 right={<button type="button" onClick={() => setShowAllAssumptions((v) => !v)} className="text-muted transition hover:text-cream" aria-label="Toggle assumptions"><ChevronDown className={`h-4 w-4 transition-transform ${showAllAssumptions ? "rotate-180" : ""}`} /></button>}
               />
-              <div className="space-y-2 border-t border-white/[0.06] px-5 py-4">
+              <div className="space-y-2 border-t border-black/[0.06] px-5 py-4">
                 {result.result.assumptions.slice(0, showAllAssumptions ? undefined : 3).map((assumption) => (
                   <div key={assumption.key} className="flex gap-2.5">
                     {assumption.source === "memory" ? <Brain className="mt-0.5 h-3 w-3 shrink-0 text-lime" /> : assumption.source === "user" ? <ShieldCheck className="mt-0.5 h-3 w-3 shrink-0 text-sky" /> : <CircleAlert className="mt-0.5 h-3 w-3 shrink-0 text-muted" />}

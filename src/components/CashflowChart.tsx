@@ -19,18 +19,18 @@ export function CashflowChart({
         <AreaChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
           <defs>
             <linearGradient id="incomeFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#c9f76f" stopOpacity={0.28} />
-              <stop offset="100%" stopColor="#c9f76f" stopOpacity={0.01} />
+              <stop offset="0%" stopColor="#2e7d4f" stopOpacity={0.18} />
+              <stop offset="100%" stopColor="#2e7d4f" stopOpacity={0.01} />
             </linearGradient>
             <linearGradient id="expenseFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#8ecdf5" stopOpacity={0.12} />
-              <stop offset="100%" stopColor="#8ecdf5" stopOpacity={0.01} />
+              <stop offset="0%" stopColor="#2f6ea3" stopOpacity={0.1} />
+              <stop offset="100%" stopColor="#2f6ea3" stopOpacity={0.01} />
             </linearGradient>
           </defs>
-          <CartesianGrid stroke="rgba(241,244,233,0.06)" vertical={false} />
+          <CartesianGrid stroke="rgba(10,11,12,0.06)" vertical={false} />
           <XAxis
             dataKey="month"
-            tick={{ fill: "#7f8a7c", fontSize: 10 }}
+            tick={{ fill: "#8a8f8b", fontSize: 10 }}
             axisLine={false}
             tickLine={false}
             tickFormatter={(value: string) => {
@@ -40,7 +40,7 @@ export function CashflowChart({
             }}
           />
           <YAxis
-            tick={{ fill: "#7f8a7c", fontSize: 10 }}
+            tick={{ fill: "#8a8f8b", fontSize: 10 }}
             axisLine={false}
             tickLine={false}
             tickFormatter={(value: number) => formatMinor(value, currency, { compact: true })}
@@ -48,17 +48,17 @@ export function CashflowChart({
           />
           <Tooltip
             contentStyle={{
-              background: "#11150f",
-              border: "1px solid rgba(241,244,233,0.12)",
+              background: "#ffffff",
+              border: "1px solid rgba(10,11,12,0.08)",
               borderRadius: 12,
               fontSize: 11,
-              color: "#f1f4e9",
+              color: "#0a0b0c",
             }}
-            labelStyle={{ color: "#96a093", fontSize: 10, marginBottom: 4 }}
+            labelStyle={{ color: "#5d615e", fontSize: 10, marginBottom: 4 }}
             formatter={(value, name) => [formatMinor(Number(value), currency), name === "incomeMinor" ? "Income" : "Expenses"]}
           />
-          <Area type="monotone" dataKey="incomeMinor" stroke="#c9f76f" strokeWidth={1.6} fill="url(#incomeFill)" />
-          <Area type="monotone" dataKey="expenseMinor" stroke="#8ecdf5" strokeWidth={1.2} strokeDasharray="3 3" fill="url(#expenseFill)" />
+          <Area type="monotone" dataKey="incomeMinor" stroke="#2e7d4f" strokeWidth={1.8} fill="url(#incomeFill)" />
+          <Area type="monotone" dataKey="expenseMinor" stroke="#2f6ea3" strokeWidth={1.3} strokeDasharray="3 3" fill="url(#expenseFill)" />
         </AreaChart>
       </ResponsiveContainer>
     </div>

@@ -1,24 +1,28 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-ink: #080a08;
-  --color-panel: #101410;
-  --color-panel-2: #151a15;
-  --color-line: #252c24;
-  --color-cream: #f1f4e9;
-  --color-muted: #96a093;
-  --color-lime: #c9f76f;
-  --color-lime-dim: #9cc94d;
-  --color-red: #ff8d7a;
-  --color-amber: #f3c969;
-  --color-sky: #8ecdf5;
-  --font-sans: var(--font-geist-sans), "Avenir Next", "Segoe UI", sans-serif;
-  --font-mono: var(--font-geist-mono), "SFMono-Regular", Menlo, monospace;
+  /* Light paper palette. Token names are kept stable across the codebase:
+     "cream" is primary text, "lime" is the accent. */
+  --color-ink: #0a0b0c;
+  --color-paper: #f6f6f4;
+  --color-panel: #ffffff;
+  --color-panel-2: #f1f1ee;
+  --color-line: rgba(10, 11, 12, 0.09);
+  --color-cream: #0a0b0c;
+  --color-muted: #5d615e;
+  --color-lime: #2e7d4f;
+  --color-lime-dim: #3f9a63;
+  --color-red: #c2412d;
+  --color-amber: #a8650c;
+  --color-sky: #2f6ea3;
+  --font-sans: var(--font-hanken), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --font-hand: var(--font-shantell), "Bradley Hand", cursive;
 }
 
 :root {
-  color-scheme: dark;
-  --background: #080a08;
+  color-scheme: light;
+  --background: #f6f6f4;
 }
 
 * {
@@ -31,10 +35,7 @@ html {
 }
 
 body {
-  background:
-    radial-gradient(1100px 520px at 76% -10%, rgba(201, 247, 111, 0.11), transparent 62%),
-    radial-gradient(800px 420px at 4% 8%, rgba(142, 205, 245, 0.06), transparent 60%),
-    #080a08;
+  background: #f6f6f4;
   color: var(--color-cream);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
@@ -42,8 +43,8 @@ body {
 }
 
 ::selection {
-  background: var(--color-lime);
-  color: #0a0d08;
+  background: rgba(46, 125, 79, 0.18);
+  color: #0a0b0c;
 }
 
 ::-webkit-scrollbar {
@@ -54,15 +55,16 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #2a3228;
+  background: rgba(10, 11, 12, 0.16);
   border-radius: 99px;
-  border: 2px solid #080a08;
+  border: 2px solid #f6f6f4;
 }
 
+/* Hand-drawn display face: friendly headlines, never for numbers in tables. */
 .font-display {
-  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
-  font-weight: 400;
-  letter-spacing: -0.025em;
+  font-family: var(--font-hand);
+  font-weight: 500;
+  letter-spacing: -0.015em;
 }
 
 .text-balance {
@@ -71,32 +73,60 @@ body {
 
 .grid-noise {
   background-image:
-    linear-gradient(to right, rgba(255, 255, 255, 0.028) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+    linear-gradient(to right, rgba(10, 11, 12, 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(10, 11, 12, 0.035) 1px, transparent 1px);
   background-size: 52px 52px;
 }
 
 .hairline {
-  border-color: rgba(241, 244, 233, 0.09);
+  border-color: rgba(10, 11, 12, 0.08);
 }
 
 .panel {
-  background: linear-gradient(180deg, rgba(23, 28, 22, 0.9), rgba(15, 19, 15, 0.94));
-  border: 1px solid rgba(241, 244, 233, 0.09);
-  box-shadow: 0 24px 80px -40px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  background: #ffffff;
+  border: 1px solid rgba(10, 11, 12, 0.07);
+  box-shadow: 0 1px 2px rgba(10, 11, 12, 0.04), 0 14px 36px -22px rgba(10, 11, 12, 0.22);
 }
 
 .panel-flat {
-  background: rgba(17, 21, 17, 0.72);
-  border: 1px solid rgba(241, 244, 233, 0.08);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(10, 11, 12, 0.07);
 }
 
 .lime-glow {
-  box-shadow: 0 0 0 1px rgba(201, 247, 111, 0.4), 0 18px 60px -24px rgba(201, 247, 111, 0.55);
+  box-shadow: 0 0 0 1px rgba(46, 125, 79, 0.35), 0 18px 50px -24px rgba(46, 125, 79, 0.45);
+}
+
+/* Sky-to-sunset hero canvas with soft clouds. */
+.sky {
+  background:
+    radial-gradient(60% 34% at 50% 106%, rgba(255, 231, 160, 0.95), rgba(255, 231, 160, 0) 72%),
+    linear-gradient(180deg, #9cc7e4 0%, #b9d2e6 15%, #dccfdc 34%, #f1c3b5 54%, #f6b897 74%, #fad692 100%);
+}
+
+/* Soft clouds: layered radial puffs, no hard edges. */
+.cloud {
+  position: absolute;
+  pointer-events: none;
+  background:
+    radial-gradient(closest-side, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0)) 0 40% / 55% 100% no-repeat,
+    radial-gradient(closest-side, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0)) 35% 0 / 50% 120% no-repeat,
+    radial-gradient(closest-side, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0)) 100% 55% / 55% 90% no-repeat;
+  filter: blur(6px);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 1px solid rgba(10, 11, 12, 0.06);
+  box-shadow: 0 1px 2px rgba(10, 11, 12, 0.05), 0 6px 16px -10px rgba(10, 11, 12, 0.2);
 }
 
 .focus-ring:focus-visible {
-  outline: 2px solid var(--color-lime);
+  outline: 2px solid var(--color-ink);
   outline-offset: 2px;
 }
 
@@ -115,7 +145,7 @@ body {
 }
 
 .shimmer {
-  background-image: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
+  background-image: linear-gradient(90deg, transparent, rgba(10,11,12,0.05), transparent);
   background-size: 200% 100%;
   animation: shimmer 1.8s infinite;
 }
@@ -130,9 +160,5 @@ body {
 }
 
 input, select, textarea {
-  color-scheme: dark;
-}
-
-input[type="date"]::-webkit-calendar-picker-indicator {
-  filter: invert(0.8);
+  color-scheme: light;
 }

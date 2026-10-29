@@ -68,7 +68,7 @@ The hardest product constraint was honesty. It is easy to build a demo where a b
 
 The current checkout has no `MEMWAL_PRIVATE_KEY` or `MEMWAL_ACCOUNT_ID`, so it reports **0 confirmed Mainnet memories**. That is not a failure of the integration; it is the integration refusing to lie. `pnpm walrus:verify` exits non-zero until the count requirement is met, and `pnpm walrus:backfill` retries eligible records when credentials arrive.
 
-Synthetic lessons are skipped by default during backfill. Walrus blobs are public and permanent; writing fabricated history to Mainnet should be an explicit choice, not a side effect of a demo.
+Synthetic lessons are skipped by default during backfill. Walrus blobs are encrypted but permanent; writing fabricated history to Mainnet should be an explicit choice, not a side effect of a demo.
 
 ## Replay must not leak the future
 

@@ -8,9 +8,9 @@ import { flushLessonUpdates, memoryConfig, memoryHealth, userNamespace, writeMem
  * failed, and blocked records, because a blocked record is exactly what you
  * get before credentials are configured.
  *
- * Synthetic demo lessons are NOT written by default: Walrus blobs are public
- * and permanent, so fabricating Mainnet history is opt-in. Pass
- * --include-synthetic only for a demo account you are willing to label publicly.
+ * Synthetic demo lessons are NOT written by default: Walrus blobs are
+ * permanent, so writing fabricated history to Mainnet is opt-in. Pass
+ * --include-synthetic only for the clearly labelled demo account.
  *
  * Usage:
  *   pnpm walrus:backfill --dry-run

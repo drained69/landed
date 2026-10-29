@@ -1,5 +1,10 @@
 import type { Metadata, Viewport } from "next";
+import { Hanken_Grotesk, JetBrains_Mono, Shantell_Sans } from "next/font/google";
 import "./globals.css";
+
+const sans = Hanken_Grotesk({ subsets: ["latin"], variable: "--font-hanken", display: "swap" });
+const hand = Shantell_Sans({ subsets: ["latin"], variable: "--font-shantell", display: "swap" });
+const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains", display: "swap" });
 
 export const metadata: Metadata = {
   title: "LANDED — money that remembers",
@@ -14,13 +19,13 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#080a08",
-  colorScheme: "dark",
+  themeColor: "#f6f6f4",
+  colorScheme: "light",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className="h-full antialiased">
+    <html lang="en" className={`h-full antialiased ${sans.variable} ${hand.variable} ${mono.variable}`}>
       <body className="min-h-full">{children}</body>
     </html>
   );

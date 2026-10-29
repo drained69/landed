@@ -24,11 +24,11 @@ type ButtonSize = "sm" | "md" | "lg";
 
 const buttonBase = "inline-flex items-center justify-center gap-2 rounded-full font-medium transition-all duration-200 focus-ring disabled:cursor-not-allowed disabled:opacity-45 whitespace-nowrap";
 const buttonVariants: Record<ButtonVariant, string> = {
-  primary: "bg-lime text-[#0b1007] hover:bg-[#d8ff8e] active:scale-[0.985] shadow-[0_10px_36px_-14px_rgba(201,247,111,0.7)]",
-  secondary: "bg-[#20261e] text-cream hover:bg-[#2a3227] border border-[#333d31]",
-  ghost: "text-muted hover:text-cream hover:bg-white/[0.04]",
-  danger: "bg-[#3a1c18] text-red border border-[#5e2d26] hover:bg-[#47211c]",
-  outline: "border border-[#3a4437] text-cream hover:border-lime/50 hover:text-lime",
+  primary: "bg-ink text-white hover:bg-black/80 active:scale-[0.985] shadow-[0_10px_36px_-14px_rgba(10,11,12,0.35)]",
+  secondary: "bg-white text-cream border border-black/[0.1] shadow-[0_1px_2px_rgba(10,11,12,0.05)] hover:bg-[#fafaf8]",
+  ghost: "text-muted hover:text-cream hover:bg-black/[0.04]",
+  danger: "bg-red/[0.07] text-red border border-red/30 hover:bg-red/[0.12]",
+  outline: "bg-white border border-black/[0.1] text-cream hover:border-black/25",
 };
 const buttonSizes: Record<ButtonSize, string> = {
   sm: "h-8 px-3 text-[12px]",
@@ -64,12 +64,12 @@ export function LinkButton({
 type Tone = "neutral" | "lime" | "red" | "amber" | "sky" | "muted";
 
 const tones: Record<Tone, string> = {
-  neutral: "border-white/10 bg-white/[0.04] text-cream",
+  neutral: "border-black/10 bg-black/[0.04] text-cream",
   lime: "border-lime/25 bg-lime/[0.09] text-lime",
   red: "border-red/25 bg-red/[0.08] text-red",
   amber: "border-amber/25 bg-amber/[0.08] text-amber",
   sky: "border-sky/25 bg-sky/[0.08] text-sky",
-  muted: "border-white/10 bg-white/[0.02] text-muted",
+  muted: "border-black/10 bg-black/[0.02] text-muted",
 };
 
 export function Badge({ children, tone = "neutral", className }: { children: ReactNode; tone?: Tone; className?: string }) {
@@ -99,7 +99,7 @@ export function Progress({ value, tone = "lime", className }: { value: number; t
   const pct = Math.max(0, Math.min(100, value));
   const bg = tone === "lime" ? "bg-lime" : tone === "amber" ? "bg-amber" : tone === "red" ? "bg-red" : "bg-sky";
   return (
-    <div className={cn("h-1.5 w-full overflow-hidden rounded-full bg-white/[0.07]", className)}>
+    <div className={cn("h-1.5 w-full overflow-hidden rounded-full bg-black/[0.07]", className)}>
       <div className={cn("h-full rounded-full transition-all duration-700", bg)} style={{ width: `${pct}%` }} />
     </div>
   );
@@ -108,7 +108,7 @@ export function Progress({ value, tone = "lime", className }: { value: number; t
 export function EmptyState({ title, body, action, icon }: { title: string; body: string; action?: ReactNode; icon?: ReactNode }) {
   return (
     <div className="flex flex-col items-center px-6 py-12 text-center">
-      {icon ? <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03] text-muted">{icon}</div> : null}
+      {icon ? <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl border border-black/10 bg-black/[0.03] text-muted">{icon}</div> : null}
       <p className="text-[14px] font-medium text-cream">{title}</p>
       <p className="mt-2 max-w-sm text-[12.5px] leading-relaxed text-muted">{body}</p>
       {action ? <div className="mt-5">{action}</div> : null}
@@ -121,7 +121,7 @@ export function Money({ minor, currency = "USD", className, sign = false }: { mi
 }
 
 export function Skeleton({ className }: { className?: string }) {
-  return <div className={cn("shimmer rounded-lg bg-white/[0.04]", className)} />;
+  return <div className={cn("shimmer rounded-lg bg-black/[0.04]", className)} />;
 }
 
 export function ErrorNote({ children, className }: { children: ReactNode; className?: string }) {
@@ -150,8 +150,8 @@ export function Field({ label, hint, children, className }: { label: ReactNode; 
   );
 }
 
-export const inputClass = "h-10 w-full rounded-xl border border-[#333d31] bg-[#0c100c] px-3 text-[13px] text-cream placeholder:text-muted/50 focus-ring focus:border-lime/50";
-export const selectClass = "h-10 w-full appearance-none rounded-xl border border-[#333d31] bg-[#0c100c] px-3 text-[13px] text-cream focus-ring focus:border-lime/50";
+export const inputClass = "h-10 w-full rounded-xl border border-black/[0.12] bg-white px-3 text-[13px] text-cream placeholder:text-muted/50 focus-ring focus:border-lime/50";
+export const selectClass = "h-10 w-full appearance-none rounded-xl border border-black/[0.12] bg-white px-3 text-[13px] text-cream focus-ring focus:border-lime/50";
 
 export function Toggle({ checked, onChange, label, description, disabled }: { checked: boolean; onChange: (next: boolean) => void; label: string; description?: string; disabled?: boolean }) {
   return (
@@ -169,10 +169,10 @@ export function Toggle({ checked, onChange, label, description, disabled }: { ch
         onClick={() => onChange(!checked)}
         className={cn(
           "relative mt-0.5 h-6 w-11 shrink-0 rounded-full border transition-colors focus-ring disabled:opacity-40",
-          checked ? "border-lime/40 bg-lime/80" : "border-white/10 bg-white/[0.08]",
+          checked ? "border-lime/40 bg-lime/80" : "border-black/10 bg-black/[0.08]",
         )}
       >
-        <span className={cn("absolute top-0.5 h-4.5 w-4.5 rounded-full bg-[#0b0e09] transition-transform", checked ? "left-[22px]" : "left-0.5")} style={{ height: 18, width: 18 }} />
+        <span className={cn("absolute top-0.5 h-4.5 w-4.5 rounded-full bg-white transition-transform", checked ? "left-[22px]" : "left-0.5")} style={{ height: 18, width: 18 }} />
       </button>
     </div>
   );
