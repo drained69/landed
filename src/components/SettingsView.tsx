@@ -211,7 +211,7 @@ export function SettingsView({
       const json = await response.json();
       if (!response.ok) throw new Error(json.error ?? "Tatum read failed");
       setWalletResult(json);
-      flash("Wallet balances returned by Tatum Sui RPC.");
+      flash("Wallet balances returned by Tatum (Sui Mainnet).");
     });
   }
 

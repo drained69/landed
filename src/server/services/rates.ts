@@ -1,4 +1,4 @@
-import { IntegrationUnavailableError } from "@/server/errors";
+import { fetchWithRateLimitRetry, IntegrationUnavailableError } from "@/server/errors";
 
 /**
  * Tatum Data API exchange rates (`/v4/data/rate/symbol`).
@@ -70,7 +70,7 @@ export async function getRates(symbols: string[], basePair = "USD"): Promise<Map
   }
   if (missing.length === 0) return result;
 
-  const response = await fetch(`${dataApiUrl()}/v4/data/rate/symbol/batch`, {
+  const response = await fetchWithRateLimitRetry(`${dataApiUrl()}/v4/data/rate/symbol/batch`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-api-key": apiKey() },
     body: JSON.stringify(missing.map((symbol, i) => ({ batchId: String(i), symbol, basePair: base }))),

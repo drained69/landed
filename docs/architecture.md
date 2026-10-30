@@ -147,7 +147,7 @@ Heuristics only ever produce **proposals**. **Alerts** are raised exclusively by
 
 ### Tatum-verified outcomes
 
-`POST /api/tatum/transaction` reads `sui_getTransactionBlock` through Tatum and returns settlement status, sender, per-owner balance changes and net gas (computation + storage − rebate, in SUI). The outcome form can fill amount sent, received and delivery hours from it, but only for balance changes already in the decision's currency; SUI gas is shown, never converted. On save, the outcome route re-reads the digest server-side: a non-success transaction is refused, and `onchain_verified` can no longer be claimed by the client. Lessons drafted from a verified outcome are tagged `verified_onchain` with slightly higher confidence.
+`POST /api/tatum/transaction` reads the transaction through Tatum's Sui GraphQL gateway and returns settlement status, sender, per-owner balance changes and net gas (computation + storage − rebate, in SUI). The outcome form can fill amount sent, received and delivery hours from it, but only for balance changes already in the decision's currency; SUI gas is shown, never converted. On save, the outcome route re-reads the digest server-side: a non-success transaction is refused, and `onchain_verified` can no longer be claimed by the client. Lessons drafted from a verified outcome are tagged `verified_onchain` with slightly higher confidence.
 ## 6. Walrus Memory integration
 
 `MemoryRecord` stores:

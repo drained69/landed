@@ -80,7 +80,7 @@ const chores = [
 const stack = [
   { icon: Database, tag: "Walrus Memory · Mainnet", title: "Typed lessons, portable text", body: "Confirmed lessons are written to your namespace with their typed rule embedded. Recall is semantic; the database rule stays authoritative." },
   { icon: History, tag: "Walrus · restore + inventory", title: "Total Recall on any device", body: "The namespace follows your sign-in, so restore() and recall rebuild your ledger anywhere; listMemories() independently counts what is stored." },
-  { icon: Landmark, tag: "Tatum · Sui RPC", title: "Settlement you can check", body: "Balances, history and transaction evidence. The server re-verifies a digest before anything is called onchain-verified." },
+  { icon: Landmark, tag: "Tatum · Sui", title: "Settlement you can check", body: "Balances, history and transaction evidence. The server re-verifies a digest before anything is called onchain-verified." },
   { icon: LineChart, tag: "Tatum · Data API", title: "Sourced exchange rates", body: "Crypto balances and gas are valued only with a rate Tatum returns — shown with its source, never added to safe-to-move." },
   { icon: Fingerprint, tag: "Authorization", title: "Your database owns access", body: "Walrus is the memory layer, not the lock. Every query is scoped to the signed-in account before recall or write." },
   { icon: ShieldCheck, tag: "Deterministic engine", title: "No LLM arithmetic", body: "Cash flow, routes and prediction errors are tested TypeScript in integer cents. The optional AI layer only explains — and is discarded if it invents a number." },

@@ -12,7 +12,7 @@
 
 Built for the **Tatum × Walrus — Total Recall** hackathon · Consumer Finance track
 
-`Next.js 16` · `React 19` · `TypeScript` · `Prisma` · `Walrus Memory (MemWal)` · `Tatum Sui RPC + Data API` · `Vitest (82 tests)`
+`Next.js 16` · `React 19` · `TypeScript` · `Prisma` · `Walrus Memory (MemWal)` · `Tatum Sui GraphQL + Data API` · `Vitest (82 tests)`
 
 </div>
 
@@ -144,7 +144,7 @@ flowchart LR
     end
     subgraph External
         WAL[Walrus Memory relayer<br/>Mainnet · SEAL-encrypted blobs]
-        TRPC[Tatum Sui RPC gateway]
+        TRPC[Tatum Sui GraphQL gateway]
         TDATA[Tatum Data API<br/>exchange rates]
         LLM[Optional OpenAI-compatible LLM]
     end
@@ -168,7 +168,7 @@ flowchart LR
 | UI | Tailwind CSS v4, Recharts, Lucide icons; Hanken Grotesk, Shantell Sans and JetBrains Mono via `next/font` |
 | Data | Prisma 6 — SQLite by default, schema portable to PostgreSQL |
 | Memory | `@mysten-incubation/memwal` — Walrus Memory on Mainnet |
-| Onchain | Tatum Sui JSON-RPC gateway, Tatum Data API v4 |
+| Onchain | Tatum Sui GraphQL gateway, Tatum Data API v4 |
 | Validation | Zod 4 |
 | Tests | Vitest 5, including the SDK's own `MemWalMock` |
 | Deploy | Docker (Node 22 Alpine) on Railway |
@@ -235,14 +235,18 @@ On recall the **database rule wins** and the Walrus text is a fallback, so a mal
 
 ## Tatum integration
 
-### Sui RPC (`sui-mainnet.gateway.tatum.io`)
+### Sui GraphQL (`sui-mainnet.gateway.tatum.io/graphql`)
 
-| Method | Used for |
+Sui has retired JSON-RPC, so LANDED reads Sui through Tatum's GraphQL gateway.
+
+| Query | Used for |
 | --- | --- |
-| `sui_getLatestCheckpointSequenceNumber` | Health and reachability |
-| `suix_getAllBalances`, `suix_getCoinMetadata` | Wallet balances with correct decimals |
-| `suix_queryTransactionBlocks` | Wallet history import (duplicate-safe) |
-| `sui_getTransactionBlock` | Outcome evidence: status, sender, per-owner balance changes, net gas |
+| `checkpoint { sequenceNumber }` | Health and reachability |
+| `address { balances { coinType totalBalance coinMetadata } }` | Wallet balances with correct decimals |
+| `address { transactions(relation: AFFECTED) }` | Wallet history import, incoming and outgoing (duplicate-safe) |
+| `transaction(digest) { effects { status gasEffects balanceChanges } }` | Outcome evidence: status, sender, per-owner balance changes, net gas |
+
+Tatum's free plan allows 3 requests per second; rate-limited calls back off and retry.
 
 A digest pasted when recording an outcome fills the facts in the decision's currency, and the server **re-reads it through Tatum** before marking anything `onchain_verified` — the browser's claim is never trusted. Lessons drafted from a verified outcome carry `verified_onchain` evidence.
 
@@ -299,7 +303,7 @@ Open http://localhost:3000. Create an account, or choose **Explore the live demo
 | --- | --- | --- |
 | `DATABASE_URL` | yes | `file:./dev.db` locally; `file:/app/data/landed.db` in the container |
 | `NEXT_PUBLIC_APP_URL` | yes | Public base URL |
-| `TATUM_API_KEY` | for onchain features | Tatum key (server-only); enables Sui RPC and Data API |
+| `TATUM_API_KEY` | for onchain features | Tatum key (server-only); enables Sui reads and the Data API |
 | `TATUM_SUI_RPC_URL` | no | Defaults to `https://sui-mainnet.gateway.tatum.io` |
 | `TATUM_SUI_NETWORK` | no | `mainnet` |
 | `TATUM_DATA_API_URL` | no | Defaults to `https://api.tatum.io` |
@@ -420,7 +424,7 @@ docs/                   Architecture, setup, demo script, blog, submission check
 | Requirement | How LANDED meets it |
 | --- | --- |
 | Walrus Memory integrated and writing on Mainnet | `rememberAndWait` / `recall` / `restore` / `listMemories`; three namespaces; writes confirmed only with a blob ID |
-| Tatum RPC for onchain data | Sui RPC for balances, history and settlement evidence; Data API for rates |
+| Tatum RPC for onchain data | Sui GraphQL gateway for balances, history and settlement evidence; Data API for rates |
 | ≥ 10 memories on Mainnet | 21 lessons + 5 journal entries + track-record updates ready via `walrus:backfill`; `walrus:verify` checks ledger and relayer inventory |
 | Blog post | [docs/blog.md](docs/blog.md) |
 | Working demo and public repo | [Live app](https://landed-production-3dc8.up.railway.app) with a self-refreshing demo account |
@@ -433,7 +437,8 @@ Judging-criteria evidence is mapped in [docs/submission.md](docs/submission.md).
 
 ## Current status and limitations
 
-- **Mainnet credentials.** The live deployment runs without Walrus and Tatum keys until they are added, and shows *local rehearsal* / *not configured* honestly. Walrus flows are verified end to end against the official `MemWalMock`; live Mainnet behaviour is confirmed once keys are set and `walrus:verify` passes.
+- **Live on Mainnet.** The deployment writes and recalls through Walrus Memory on Mainnet (25 confirmed writes, verified against the relayer inventory) and reads Sui Mainnet through Tatum. A checkout without keys shows *local rehearsal* / *not configured* instead of simulating success.
+- **Tatum free plan.** It allows 3 requests per second; LANDED retries rate-limited calls, but heavy concurrent use needs a paid plan.
 - **No bank connections by design.** Balances are self-reported, CSV-imported or verified onchain; route quotes are user-entered.
 - **LANDED never moves money.** It advises and records outcomes.
 - **Single instance.** SQLite on a volume and in-memory rate limits suit one server; use PostgreSQL and a shared rate limiter to scale out.

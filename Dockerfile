@@ -31,7 +31,7 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/src ./src
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
-COPY --from=builder /app/scripts/docker-start.sh ./scripts/docker-start.sh
+COPY --from=builder /app/scripts ./scripts
 
 RUN mkdir -p /app/data && chmod +x ./scripts/docker-start.sh && chown -R node:node /app
 USER node

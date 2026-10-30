@@ -44,10 +44,12 @@ TATUM_SUI_NETWORK="mainnet"
 
 What LANDED calls through Tatum:
 
-- `sui_getLatestCheckpointSequenceNumber` (health)
-- `suix_getAllBalances` (balances)
-- `suix_getOwnedObjects` (coins)
-- `sui_getTransactionBlock` (settlement reads)
+- `checkpoint` (health)
+- `address.balances` (balances with coin metadata)
+- `address.transactions` (history)
+- `transaction(digest)` (settlement reads)
+
+These are Sui GraphQL queries sent to `{TATUM_SUI_RPC_URL}/graphql`; Sui no longer serves JSON-RPC.
 
 There is **no fallback to a public RPC**. If the key is absent, the API returns HTTP 503 with `TATUM_NOT_CONFIGURED` and the UI shows `not configured`.
 
@@ -193,7 +195,7 @@ pnpm build
 pnpm walrus:verify --min=0
 ```
 
-Expected in this checkout without credentials:
+Expected without credentials (the live deployment has both configured):
 
 - Tatum: `not configured`, API 503 for wallet reads.
 - Walrus: `not configured`, writes `blocked`, 0 confirmed.

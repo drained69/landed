@@ -24,7 +24,7 @@ export const GET = api(async (req) => {
     balances,
     transactions,
     network: process.env.TATUM_SUI_NETWORK ?? "mainnet",
-    note: "Verified through Tatum's Sui RPC. Onchain settlement is not proof of fiat or recipient-side payout.",
+    note: "Verified through Tatum's Sui gateway. Onchain settlement is not proof of fiat or recipient-side payout.",
   };
 });
 

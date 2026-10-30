@@ -27,15 +27,15 @@ Click **Open demo account**.
 
 Point at:
 
-- **Safe to move now: $150.00**
+- **Safe to move now: $130.00**
 - **Cleared: $5,024.50**
-- Protected commitments **$1,680.00**, near-term spending **$983.78**, buffer **$100.00**
+- Protected commitments **$1,680.00**, near-term spending **$983.78**, buffer **$134.70** (a recalled lesson, "keep at least $150 after a discretionary transfer", raises the floor)
 - Memory applied: **Single-move cap at 50% of safe-to-move**
-- Cards: **Synthetic demo**, **Local rehearsal**
+- Cards: **Synthetic demo**, **Live Walrus recall**
 
 > "The balance is not the answer. Rent, bills, spending, and a buffer are protected first. And one recalled lesson already caps this move at 50% of safe-to-move."
 
-> "This deployment has no Walrus credentials, so the app says *local rehearsal* and counts zero Mainnet writes. It does not pretend."
+> "Those lessons were just recalled from Walrus Mainnet, not from this server's database."
 
 ---
 
@@ -106,18 +106,17 @@ Click **Memory**.
 
 Point at:
 
-- **26 records** (21 lessons + 5 journal entries), **0 confirmed Mainnet writes**, all local rehearsal
+- **26 records**, **25 confirmed Mainnet writes** (each with a Walrus blob ID), 1 superseded lesson kept locally
 - **Getting sharper every week** chart: rules in force grow from 1 to 20; the week of the shortfall shows a red miss, and the advice after it worked
 - **Track record** tab: lessons tested by later outcomes, **6 verdicts held, 0 contradicted**, confidence moving e.g. **62% → 77%** for the Northline lesson
 - **Walrus verification → Total Recall**: counts from the relayer's own inventory and **Restore from Walrus** for a fresh install; the decision-journal toggle
 
 Ask LANDED: “What did you tell me last time I asked about sending money?” — the journal answers with the question, the advice, and the reason.
 - Category, verification, write status, blob ID, decision, timestamp
-- A blocked write explanation: missing `MEMWAL_PRIVATE_KEY` / `MEMWAL_ACCOUNT_ID`
 
 > "Every outcome judges the lessons that shaped it. Lessons that hold gain confidence and act more strongly next time; a lesson that applied and still failed loses confidence and gets flagged for review. Memory that can be wrong, and knows it."
 
-> "A lesson becomes confirmed only when Walrus returns a blob ID. Local records are labelled rehearsal. The app will not turn a missing key into a green checkmark."
+> "A lesson becomes confirmed only when Walrus returns a blob ID. The relayer's own inventory lists 20 lessons, 5 journal entries and 6 track-record updates, all matched to this ledger. Restore from Walrus rebuilds them on a fresh install."
 
 Open one lesson → point at the typed rule and the portable Walrus text.
 
@@ -131,26 +130,25 @@ Click **Settings → Integrations**.
 
 Point at:
 
-- Tatum **not configured**; no public-RPC substitution
-- Walrus **not configured**, write-ready unknown
+- Tatum **configured**, Sui Mainnet reachable with a live checkpoint, and a live SUI/USD rate from the Data API
+- Paste any Sui Mainnet address and click **Test read**: balances and recent transactions come back through Tatum
+- Walrus **configured**, relayer reachable, write-ready
 - AI explanation layer **off**; arithmetic does not depend on it
 - Memory namespace derived server-side
 
-> "With a Tatum key, Sui reads are real: paste a transaction digest when recording an outcome and LANDED reads settlement, balance changes and gas through Tatum, fills the facts, and re-verifies the digest server-side before it marks anything onchain-verified. With Walrus credentials, a confirmed lesson is written and recalled on Mainnet. This build reports the blocked state instead of simulating success."
+> "Sui reads are real: paste a transaction digest when recording an outcome and LANDED reads settlement, balance changes and gas through Tatum, fills the facts, and re-verifies the digest server-side before it marks anything onchain-verified. Without keys the app reports a blocked state instead of simulating success."
 
 ---
 
 ## 2:40–2:55 — Close the loop
 
-> "The loop is: context, deterministic decision, real outcome, autopsy, user-confirmed lesson, Walrus write, and a future decision that changes. `pnpm walrus:verify` requires ten confirmed blob IDs; today it reports zero because credentials are absent. That is the honest state of this checkout."
+> "The loop is: context, deterministic decision, real outcome, autopsy, user-confirmed lesson, Walrus write, and a future decision that changes. `walrus:verify` checks LANDED's ledger against the relayer's own inventory: 25 confirmed Mainnet writes, all listed."
 
-Optional if credentials are available:
+Optional:
 
-1. Confirm a lesson.
-2. Click **Write to Walrus**.
-3. Show the returned blob ID and `confirmed` status.
-4. Run `pnpm walrus:backfill` and `pnpm walrus:verify`.
-5. Show the new lesson applied to a fresh $300 request.
+1. Record an outcome and confirm the lesson it proposes.
+2. Show the returned blob ID and `confirmed` status.
+3. Show the new lesson applied to a fresh $300 request.
 
 ---
 

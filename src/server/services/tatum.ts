@@ -1,5 +1,5 @@
 import { prisma } from "@/server/db";
-import { IntegrationUnavailableError } from "@/server/errors";
+import { fetchWithRateLimitRetry, IntegrationUnavailableError } from "@/server/errors";
 import { convertToMinor, getRates, type SourcedRate } from "./rates";
 
 export { IntegrationUnavailableError };
@@ -11,7 +11,14 @@ const KNOWN_COINS: Record<string, { symbol: string; decimals: number; name: stri
 };
 
 function rpcUrl(): string {
-  return process.env.TATUM_SUI_RPC_URL?.trim() || "https://sui-mainnet.gateway.tatum.io";
+  const base = (process.env.TATUM_SUI_RPC_URL?.trim() || "https://sui-mainnet.gateway.tatum.io").replace(/\/+$/, "");
+  // Sui retired JSON-RPC; Tatum serves Sui over GraphQL at /graphql on the same gateway.
+  return base.endsWith("/graphql") ? base : `${base}/graphql`;
+}
+
+/** GraphQL returns zero-padded addresses (0x000…0002::sui::SUI); LANDED keys coins by the short form. */
+export function normalizeCoinType(coinType: string): string {
+  return coinType.replace(/^0x0*([0-9a-fA-F]+)::/, (_, hex: string) => `0x${hex.toLowerCase()}::`);
 }
 
 function apiKey(): string {
@@ -25,32 +32,74 @@ function apiKey(): string {
   return key;
 }
 
-interface RpcResult<T> {
-  jsonrpc: string;
-  id: number | string;
-  result?: T;
-  error?: { code: number; message: string; data?: unknown };
-}
-
-async function rpc<T>(method: string, params: unknown[]): Promise<T> {
-  const response = await fetch(rpcUrl(), {
+async function gql<T>(label: string, query: string, variables: Record<string, unknown> = {}): Promise<T> {
+  const response = await fetchWithRateLimitRetry(rpcUrl(), {
     method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": apiKey(),
-    },
-    body: JSON.stringify({ jsonrpc: "2.0", id: `${Date.now()}-${method}`, method, params }),
+    headers: { "content-type": "application/json", "x-api-key": apiKey() },
+    body: JSON.stringify({ query, variables }),
     signal: AbortSignal.timeout(20_000),
     cache: "no-store",
   });
   if (!response.ok) {
     const text = await response.text().catch(() => "");
-    throw new Error(`Tatum Sui RPC ${method} failed: HTTP ${response.status}${text ? ` — ${text.slice(0, 300)}` : ""}`);
+    throw new Error(`Tatum Sui ${label} failed: HTTP ${response.status}${text ? ` — ${text.slice(0, 300)}` : ""}`);
   }
-  const json = (await response.json()) as RpcResult<T>;
-  if (json.error) throw new Error(`Tatum Sui RPC ${method}: ${json.error.message}`);
-  if (json.result === undefined) throw new Error(`Tatum Sui RPC ${method}: empty result`);
-  return json.result;
+  const json = (await response.json()) as { data?: T; errors?: { message: string }[] };
+  if (json.errors?.length) throw new Error(`Tatum Sui ${label}: ${json.errors.map((e) => e.message).join("; ")}`);
+  if (!json.data) throw new Error(`Tatum Sui ${label}: empty result`);
+  return json.data;
+}
+
+const TX_FIELDS = `digest sender { address }
+  effects {
+    status timestamp executionError { message }
+    gasEffects { gasSummary { computationCost storageCost storageRebate } }
+    balanceChanges(first: 50) { nodes { owner { address } coinType { repr } amount } }
+  }`;
+
+interface GqlTransaction {
+  digest: string;
+  sender: { address: string } | null;
+  effects: {
+    status: "SUCCESS" | "FAILURE" | null;
+    timestamp: string | null;
+    executionError: { message: string } | null;
+    gasEffects: { gasSummary: { computationCost: number | string; storageCost: number | string; storageRebate: number | string } | null } | null;
+    balanceChanges: { nodes: { owner: { address: string } | null; coinType: { repr: string }; amount: string }[] } | null;
+  } | null;
+}
+
+/** Map a GraphQL transaction onto the shape the rest of this module normalizes. */
+function fromGql(tx: GqlTransaction): SuiTransactionBlock & { transaction?: { data?: { sender?: string } } } {
+  const gas = tx.effects?.gasEffects?.gasSummary;
+  return {
+    digest: tx.digest,
+    timestampMs: tx.effects?.timestamp ? String(Date.parse(tx.effects.timestamp)) : undefined,
+    balanceChanges: (tx.effects?.balanceChanges?.nodes ?? []).map((c) => ({
+      owner: { AddressOwner: c.owner?.address },
+      coinType: normalizeCoinType(c.coinType.repr),
+      amount: c.amount,
+    })),
+    effects: {
+      status: tx.effects?.status
+        ? { status: tx.effects.status === "SUCCESS" ? "success" : "failure", error: tx.effects.executionError?.message }
+        : undefined,
+      gasUsed: gas
+        ? { computationCost: String(gas.computationCost), storageCost: String(gas.storageCost), storageRebate: String(gas.storageRebate) }
+        : undefined,
+    },
+    transaction: { data: { sender: tx.sender?.address } },
+  };
+}
+
+async function fetchTransaction(digest: string) {
+  const data = await gql<{ transaction: GqlTransaction | null }>(
+    "transaction",
+    `query($d: String!) { transaction(digest: $d) { ${TX_FIELDS} } }`,
+    { d: digest },
+  );
+  if (!data.transaction) throw new Error(`Sui transaction ${digest} was not found on ${process.env.TATUM_SUI_NETWORK?.trim() || "mainnet"}.`);
+  return fromGql(data.transaction);
 }
 
 export interface TatumHealth {
@@ -75,7 +124,8 @@ export async function tatumHealth(): Promise<TatumHealth> {
     };
   }
   try {
-    const checkpoint = await rpc<string>("sui_getLatestCheckpointSequenceNumber", []);
+    const data = await gql<{ checkpoint: { sequenceNumber: number | string } | null }>("checkpoint", "{ checkpoint { sequenceNumber } }");
+    const checkpoint = data.checkpoint ? String(data.checkpoint.sequenceNumber) : null;
     return { configured: true, reachable: true, network, rpcUrl: rpcUrl(), checkpoint, error: null };
   } catch (error) {
     return {
@@ -89,20 +139,6 @@ export async function tatumHealth(): Promise<TatumHealth> {
   }
 }
 
-interface SuiBalance {
-  coinType: string;
-  coinObjectCount: number;
-  totalBalance: string;
-  lockedBalance: string | Record<string, string>;
-}
-
-interface CoinMetadata {
-  decimals: number;
-  name: string;
-  symbol: string;
-  description?: string;
-}
-
 export interface NormalizedBalance {
   coinType: string;
   symbol: string;
@@ -110,7 +146,6 @@ export interface NormalizedBalance {
   decimals: number;
   amountMinor: number;
   amountRaw: string;
-  objectCount: number;
 }
 
 function toMinor(raw: string, decimals: number): number {
@@ -124,29 +159,28 @@ function toMinor(raw: string, decimals: number): number {
 
 export async function getWalletBalances(address: string): Promise<NormalizedBalance[]> {
   if (!/^0x[a-fA-F0-9]{64}$/.test(address)) throw new Error("Invalid Sui address");
-  const balances = await rpc<SuiBalance[]>("suix_getAllBalances", [address]);
+  const data = await gql<{
+    address: { balances: { nodes: { coinType: { repr: string }; totalBalance: string; coinMetadata: { decimals: number; symbol: string | null; name: string | null } | null }[] } } | null;
+  }>(
+    "balances",
+    `query($a: SuiAddress!) { address(address: $a) { balances(first: 50) { nodes { coinType { repr } totalBalance coinMetadata { decimals symbol name } } } } }`,
+    { a: address },
+  );
   const results: NormalizedBalance[] = [];
-  for (const balance of balances) {
+  for (const balance of data.address?.balances.nodes ?? []) {
     if (BigInt(balance.totalBalance) <= 0n) continue;
-    const known = KNOWN_COINS[balance.coinType];
-    let meta: CoinMetadata | undefined = known;
-    if (!meta) {
-      try {
-        const m = await rpc<CoinMetadata | null>("suix_getCoinMetadata", [balance.coinType]);
-        if (m) meta = { symbol: m.symbol || "TOKEN", decimals: m.decimals, name: m.name || "Token" };
-      } catch {
-        meta = undefined;
-      }
-    }
+    const coinType = normalizeCoinType(balance.coinType.repr);
+    const known = KNOWN_COINS[coinType];
+    const m = balance.coinMetadata;
+    const meta = known ?? (m ? { symbol: m.symbol || "TOKEN", decimals: m.decimals, name: m.name || "Token" } : undefined);
     if (!meta) continue;
     results.push({
-      coinType: balance.coinType,
+      coinType,
       symbol: meta.symbol,
       name: meta.name,
       decimals: meta.decimals,
       amountMinor: toMinor(balance.totalBalance, meta.decimals),
       amountRaw: balance.totalBalance,
-      objectCount: balance.coinObjectCount,
     });
   }
   return results;
@@ -164,7 +198,7 @@ interface SuiTransactionBlock {
     status?: { status: string; error?: string };
     gasUsed?: { computationCost: string; storageCost: string; storageRebate: string };
   };
-  transaction?: { data?: { transaction?: { kind?: string } } };
+  transaction?: { data?: { sender?: string } };
 }
 
 export interface NormalizedChainTransaction {
@@ -211,27 +245,16 @@ function normalizeTransaction(tx: SuiTransactionBlock, address: string): Normali
 
 export async function getWalletTransactions(address: string, limit = 20): Promise<NormalizedChainTransaction[]> {
   if (!/^0x[a-fA-F0-9]{64}$/.test(address)) throw new Error("Invalid Sui address");
-  const result = await rpc<{ data: SuiTransactionBlock[]; nextCursor?: string | null; hasNextPage?: boolean }>(
-    "suix_queryTransactionBlocks",
-    [
-      {
-        filter: { FromAddress: address },
-        options: { showInput: true, showEffects: true, showBalanceChanges: true },
-      },
-      null,
-      limit,
-      true,
-    ],
+  const data = await gql<{ address: { transactions: { nodes: GqlTransaction[] } } | null }>(
+    "transactions",
+    `query($a: SuiAddress!, $n: Int!) { address(address: $a) { transactions(last: $n, relation: AFFECTED) { nodes { ${TX_FIELDS} } } } }`,
+    { a: address, n: limit },
   );
-  return (result.data ?? []).map((tx) => normalizeTransaction(tx, address));
+  return (data.address?.transactions.nodes ?? []).reverse().map((tx) => normalizeTransaction(fromGql(tx), address));
 }
 
 export async function getTransactionByDigest(digest: string, address?: string): Promise<NormalizedChainTransaction> {
-  const tx = await rpc<SuiTransactionBlock>("sui_getTransactionBlock", [
-    digest,
-    { showInput: true, showEffects: true, showBalanceChanges: true },
-  ]);
-  return normalizeTransaction(tx, address ?? "0x0");
+  return normalizeTransaction(await fetchTransaction(digest), address ?? "0x0");
 }
 
 export interface WalletSyncResult {
@@ -315,7 +338,7 @@ export async function syncSuiWallet(userId: string, address: string, label = "Su
     accountsUpdated,
     syncedAt: new Date().toISOString(),
     explorerUrl: `https://suiscan.xyz/${process.env.TATUM_SUI_NETWORK === "mainnet" || !process.env.TATUM_SUI_NETWORK ? "mainnet" : process.env.TATUM_SUI_NETWORK}/account/${address}`,
-    note: "Balances and settlement status come from Tatum's Sui RPC. An onchain success does not prove a recipient received or withdrew offchain funds.",
+    note: "Balances and settlement status come from Tatum's Sui GraphQL gateway. An onchain success does not prove a recipient received or withdrew offchain funds.",
   };
 }
 
@@ -366,10 +389,7 @@ export interface TransactionEvidence {
  */
 export async function getTransactionEvidence(digest: string): Promise<TransactionEvidence> {
   if (!/^[1-9A-HJ-NP-Za-km-z]{32,64}$/.test(digest)) throw new Error("That does not look like a Sui transaction digest");
-  const tx = await rpc<SuiTransactionBlock & { transaction?: { data?: { sender?: string } } }>("sui_getTransactionBlock", [
-    digest,
-    { showInput: true, showEffects: true, showBalanceChanges: true },
-  ]);
+  const tx = await fetchTransaction(digest);
   const gas = tx.effects?.gasUsed;
   const gasMist = gas
     ? BigInt(gas.computationCost) + BigInt(gas.storageCost) - BigInt(gas.storageRebate)
@@ -404,7 +424,7 @@ export async function getTransactionEvidence(digest: string): Promise<Transactio
       };
     }),
     explorerUrl: explorerUrl(tx.digest),
-    note: "Read from Tatum's Sui RPC. Onchain settlement does not prove a recipient-side fiat payout. Gas is converted to USD only with a Tatum Data API rate.",
+    note: "Read from Tatum's Sui GraphQL gateway. Onchain settlement does not prove a recipient-side fiat payout. Gas is converted to USD only with a Tatum Data API rate.",
   };
 }
 

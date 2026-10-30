@@ -6,8 +6,8 @@ Track: **Consumer Finance Apps** (Tatum × Walrus Total Recall, submissions clos
 
 | # | Requirement | Where it is in LANDED | Status |
 | --- | --- | --- | --- |
-| 1 | Walrus Memory integrated and writing on Mainnet | `src/server/services/memory.ts` — `rememberAndWait`, `recall`, `restore`, `listMemories` via `@mysten-incubation/memwal` | Code ready. **Needs `MEMWAL_PRIVATE_KEY` + `MEMWAL_ACCOUNT_ID`.** |
-| 2 | Tatum RPC used for onchain data | `src/server/services/tatum.ts` — Sui JSON-RPC (checkpoint, balances, coin metadata, transaction blocks); `src/server/services/rates.ts` — Data API rates | Code ready. **Needs `TATUM_API_KEY`.** |
+| 1 | Walrus Memory integrated and writing on Mainnet | `src/server/services/memory.ts` — `rememberAndWait`, `recall`, `restore`, `listMemories` via `@mysten-incubation/memwal` | Live on Mainnet: 25 confirmed writes, all listed by the relayer (`walrus:verify` passed 2026-10-30). |
+| 2 | Tatum RPC used for onchain data | `src/server/services/tatum.ts` — Sui GraphQL through Tatum's gateway (checkpoint, balances with coin metadata, history, transaction effects); `src/server/services/rates.ts` — Data API rates | Live on Mainnet (verified 2026-10-30). |
 | 3 | At least 10 memories stored on Mainnet | `pnpm walrus:backfill` writes the 21 lessons and 5 journal entries; `pnpm walrus:verify` checks the ledger *and* the relayer's own inventory | Blocked on credentials (1) |
 | 4 | Published blog post | Draft: [docs/blog.md](blog.md) | Publish (Medium, Mirror, dev.to, or similar) |
 | 5 | Working demo and public repo | Live at https://landed-production-3dc8.up.railway.app (Railway). Dockerfile + `railway.json`; with `LANDED_SEED_DEMO=true` the demo is seeded once and its dates roll forward, so it reads the same on judging day | Deploy, record video, push repo |
@@ -18,7 +18,7 @@ Track: **Consumer Finance Apps** (Tatum × Walrus Total Recall, submissions clos
 | Pillar | What a judge will see |
 | --- | --- |
 | **Apps that remember** — "scores, preferences, and reasoning across sessions… sharper every week" | *Preferences*: typed rules and Spend Watch limits. *Scores*: each lesson's track record (held / contradicted, confidence before → after). *Reasoning*: the decision journal. *Sharper every week*: the learning curve on Overview and Memory. *Across sessions*: email-derived namespace + **Restore from Walrus**. |
-| **Real stack** — "Memory on Mainnet. Tatum Sui RPC and Data APIs" | Walrus `rememberAndWait` / `recall` / `restore` / `listMemories`; Tatum Sui RPC for balances, history and settlement evidence; Tatum Data API for sourced exchange rates. |
+| **Real stack** — "Memory on Mainnet. Tatum Sui RPC and Data APIs" | Walrus `rememberAndWait` / `recall` / `restore` / `listMemories`; Tatum's Sui GraphQL gateway for balances, history and settlement evidence; Tatum Data API for sourced exchange rates. |
 | **Web2 welcome** | Dollars-first app; no wallet needed; chain details only appear as proof. Landing page leads with everyday benefits. |
 | **Tatum AI Builder** (optional) | Not used — see row 6 above. |
 

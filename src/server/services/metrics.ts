@@ -144,7 +144,7 @@ export async function getLearningCurve(userId: string, weeks = 6, now = new Date
     }),
     prisma.memoryRecord.findMany({
       where: { userId, category: { not: "reasoning" }, verificationStatus: { in: ["user_confirmed", "verified"] } },
-      select: { createdAt: true, confirmedAt: true, excluded: true, supersededBy: true, structuredRule: true },
+      select: { createdAt: true, excluded: true, supersededBy: true, structuredRule: true },
     }),
     prisma.memoryEvidence.findMany({ where: { userId, createdAt: { gte: start } }, select: { verdict: true, decisionId: true } }),
   ]);
@@ -184,7 +184,7 @@ export async function getLearningCurve(userId: string, weeks = 6, now = new Date
     if (e.verdict === "contradicted") series[w].verdictsContradicted += 1;
   }
   for (const m of memories) {
-    const learnedAt = m.confirmedAt ?? m.createdAt;
+    const learnedAt = m.createdAt; // confirmedAt is when Walrus confirmed the write, not when the rule was learned
     const w = weekOf(learnedAt);
     if (w >= 0 && w < weeks) series[w].lessonsLearned += 1;
     if (!m.structuredRule || m.excluded || m.supersededBy) continue;

@@ -66,7 +66,7 @@ The hardest product constraint was honesty. It is easy to build a demo where a b
 - `failed` — the attempt failed; the error is retained.
 - `local_rehearsal` — stored locally and clearly not a Mainnet write.
 
-The current checkout has no `MEMWAL_PRIVATE_KEY` or `MEMWAL_ACCOUNT_ID`, so it reports **0 confirmed Mainnet memories**. That is not a failure of the integration; it is the integration refusing to lie. `pnpm walrus:verify` exits non-zero until the count requirement is met, and `pnpm walrus:backfill` retries eligible records when credentials arrive.
+Without credentials, LANDED reports **0 confirmed Mainnet memories** rather than pretending. On the live deployment, the demo account has **25 confirmed Mainnet writes** (for example blob `yp3OTZo5P24Krq7TfdFGeRebRgAsI4VAVJnav338-9c`). `pnpm walrus:verify` doesn't trust LANDED's own records: it checks them against the relayer's inventory, which lists all 25.
 
 Synthetic lessons are skipped by default during backfill. Walrus blobs are encrypted but permanent; writing fabricated history to Mainnet should be an explicit choice, not a side effect of a demo.
 
@@ -104,7 +104,7 @@ A lesson confirmed once is still a hypothesis about the future. So every outcome
 
 ## Tatum as the evidence layer
 
-When a move settles on Sui, the user can paste the digest. LANDED reads it through Tatum's Sui RPC (`sui_getTransactionBlock` with balance changes and effects), shows the settlement status, balance changes and gas, and fills the facts that are in the decision's currency. On save, the server reads the digest again rather than trusting the browser's claim: only a successful transaction can mark an outcome `onchain_verified`, and lessons drafted from it carry `verified_onchain` evidence. Tatum is what turns "the user says it arrived" into "the chain says it settled".
+When a move settles on Sui, the user can paste the digest. LANDED reads it through Tatum's Sui GraphQL gateway (the transaction's effects, balance changes and gas), shows the settlement status, balance changes and gas, and fills the facts that are in the decision's currency. On save, the server reads the digest again rather than trusting the browser's claim: only a successful transaction can mark an outcome `onchain_verified`, and lessons drafted from it carry `verified_onchain` evidence. Tatum is what turns "the user says it arrived" into "the chain says it settled".
 
 ## Total Recall means a new phone, not a new you
 
