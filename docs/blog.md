@@ -54,7 +54,7 @@ LANDED stores both:
 
 On recall, the database rule wins. The Walrus text is a fallback. If a blob is restored without a local row, it is treated as rule-less, hypothesis-level text — useful context, never an authoritative instruction.
 
-The namespace is derived server-side: `landed-<sha256("landed:" + userId).slice(0, 24)>`. A delegate key can read every namespace, so Walrus is not the authorization boundary. Every query is scoped by `userId` in the database.
+The namespace is derived server-side: `landed-<sha256("landed:account:" + userId).slice(0, 24)>`. A delegate key can read every namespace, so Walrus is not the authorization boundary. Every query is scoped by `userId` in the database.
 
 ## Confirmed means confirmed
 
@@ -108,7 +108,7 @@ When a move settles on Sui, the user can paste the digest. LANDED reads it throu
 
 ## Total Recall means a new phone, not a new you
 
-The first version derived each user's Walrus namespace from a database row id. That quietly broke the point of portable memory: reinstall the app, get a new id, lose your past. The namespace now comes from the sign-in (normalized, hashed), so a fresh install recalls the same memories. **Restore from Walrus** asks the relayer to re-index its blobs, recalls LANDED's own self-describing lesson texts, and rebuilds the ledger; because the typed rule travels inside the text, a recovered lesson changes advice immediately. A separate count from the relayer's own inventory (`listMemories`) checks that "confirmed" really means stored.
+The namespace is bound to the authenticated account ID, rather than an email address that has not been verified. This keeps lessons available across devices for the same account, while preventing a newly created account from claiming old memory merely by reusing its email. A new account cannot restore the old namespace; previously saved local lessons can be published into the current namespace. **Restore from Walrus** re-indexes and recalls available lessons for the current account, and relayer inventory reports which blobs are stored.
 
 ## Immutable memory, changing minds
 
@@ -143,7 +143,7 @@ The test suite covers the parts that are easy to hand-wave:
 - recurring-charge detection (including not mistaking groceries for a subscription), memory-only alerts, newest-rule-wins, purchase checks against a learned limit
 - track-record verdicts for cash and route rules, bounded confidence updates, and the needs-review threshold
 - BigInt rate conversion and rounding; portable lesson, update and journal text round trips, including corrupted rules
-- Walrus end to end against the SDK's own `MemWalMock`: confirmed writes and relayer inventory, drafts never written, Spend Watch recall coverage, update flushing, journal recall, and a fresh-install restore that rebuilds lessons, their latest state and the track record — verified to fail if update replay is disabled
+- Walrus end to end against the SDK's own `MemWalMock`: confirmed writes and relayer inventory, drafts never written, Spend Watch recall coverage, update flushing, journal recall, and a same-account restore that rebuilds lessons, their latest state and the track record — verified to fail if update replay is disabled
 
 The authorization test is an integration test on purpose. Cross-user isolation is a property of the `where` clauses; mocking Prisma away would test nothing.
 

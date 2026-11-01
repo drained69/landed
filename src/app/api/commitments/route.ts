@@ -1,14 +1,15 @@
+import { currencySchema } from "@/server/validation";
 import { z } from "zod";
 import { prisma } from "@/server/db";
 import { api, ApiError, parseBody } from "@/server/api";
 import { requireApiUser } from "@/server/auth";
-import { parseAmountToMinor } from "@/lib/money";
+import { dateSchema, parseApiAmount } from "@/server/validation";
 
 const commitmentSchema = z.object({
-  name: z.string().min(1).max(80),
+  name: z.string().trim().min(1).max(80),
   amount: z.union([z.string(), z.number()]),
-  currency: z.string().length(3),
-  dueDate: z.string(),
+  currency: currencySchema,
+  dueDate: dateSchema,
   recurrence: z.enum(["none", "weekly", "monthly", "yearly"]).default("none"),
   priority: z.enum(["essential", "important", "discretionary"]).default("essential"),
   notes: z.string().max(300).optional().nullable(),
@@ -26,7 +27,7 @@ export const GET = api(async () => {
 export const POST = api(async (req) => {
   const user = await requireApiUser();
   const body = await parseBody(req, commitmentSchema);
-  const amountMinor = parseAmountToMinor(body.amount, body.currency);
+  const amountMinor = parseApiAmount(body.amount, body.currency);
   if (amountMinor <= 0) throw new ApiError(400, "INVALID_AMOUNT", "Amount must be positive");
   const dueDate = new Date(body.dueDate);
   if (Number.isNaN(dueDate.getTime())) throw new ApiError(400, "INVALID_DATE", "Due date is invalid");

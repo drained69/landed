@@ -10,8 +10,8 @@ export const POST = api(async (req) => {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
   rateLimit(`demo:${ip}`, 20, 60_000);
   const demo = await prisma.user.findUnique({ where: { email: "demo@landed.app" } });
-  if (!demo) {
-    throw new ApiError(503, "DEMO_NOT_SEEDED", "The demo dataset is not seeded. Run `pnpm db:seed` first.");
+  if (!demo || !demo.isDemo) {
+    throw new ApiError(503, "DEMO_NOT_SEEDED", "The demo is temporarily unavailable. Please try again later.");
   }
   // A long-running deployment keeps the demo's story current without reseeding.
   await refreshDemoClock(demo.id);

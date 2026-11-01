@@ -99,7 +99,7 @@ export async function rememberSpendRule(userId: string, key: string, amountMinor
       confidence: 0.85,
       evidenceQuality: "user_confirmed",
       verificationStatus: "user_confirmed",
-      namespace: userNamespace(user.email),
+      namespace: userNamespace(user.id),
       writeStatus: "pending",
       source: "local_rehearsal",
       isSynthetic: user.isDemo,

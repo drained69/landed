@@ -15,6 +15,12 @@ const nextConfig: NextConfig = {
   headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
+  // The same Tailwind loader is needed for explicit `next build --webpack`.
+  // Without it webpack compiles successfully but omits all utility classes.
+  webpack(config) {
+    config.module.rules.push({ test: /globals\.css$/, use: [{ loader: "@tailwindcss/turbopack" }] });
+    return config;
+  },
   // LANDED is a session-scoped financial app: every screen reads the
   // authenticated user's live records. Cache Components' static-shell
   // validation adds no value here, so the app renders per request instead.

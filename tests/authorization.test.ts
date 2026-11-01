@@ -119,9 +119,8 @@ describe("cross-user authorization", () => {
   });
 
   it("keeps Walrus namespaces disjoint per user and stable per account", async () => {
-    expect(memory.userNamespace("owner@test.landed")).not.toBe(memory.userNamespace("stranger@test.landed"));
-    expect(memory.userNamespace("Owner@Test.Landed ")).toBe(memory.userNamespace("owner@test.landed"));
-    expect(memory.userNamespace("owner@test.landed")).toMatch(/^landed-[a-f0-9]{24}$/);
-    expect(await memory.namespaceForUser(ownerId)).toBe(memory.userNamespace("owner@test.landed"));
+    expect(memory.userNamespace(ownerId)).not.toBe(memory.userNamespace(strangerId));
+    expect(memory.userNamespace(ownerId)).toMatch(/^landed-[a-f0-9]{24}$/);
+    expect(await memory.namespaceForUser(ownerId)).toBe(memory.userNamespace(ownerId));
   });
 });

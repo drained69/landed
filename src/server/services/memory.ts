@@ -66,7 +66,7 @@ function getClient(): MemWal {
   const config = memoryConfig();
   if (!config.configured) throw new Error(`Walrus Memory is not configured (${config.missing.join(", ")} missing).`);
   const key = process.env.MEMWAL_PRIVATE_KEY!.trim();
-  const cacheKey = `${key.slice(0, 8)}:${config.accountId}:${config.serverUrl}`;
+  const cacheKey = createHash("sha256").update(`${key}:${config.accountId}:${config.serverUrl}`).digest("hex");
   if (!cachedClient || cachedKey !== cacheKey) {
     cachedClient?.destroy();
     cachedClient = MemWal.create({
@@ -81,33 +81,24 @@ function getClient(): MemWal {
   return cachedClient;
 }
 
-/**
- * Namespace is derived server-side from the account's sign-in email (normalized
- * and hashed), never from a request. Using the email rather than the database
- * row id keeps memory portable: a fresh install or a new device recalls the
- * same Walrus memories for the same person. It is an organization boundary;
- * LANDED's database ownership checks remain the authorization boundary (a
- * delegate key can read every namespace).
- */
-export function userNamespace(accountEmail: string): string {
+/** Namespaces bind to the authenticated account ID, never an unverified email. */
+export function userNamespace(userId: string): string {
   const prefix = memoryConfig().appPrefix.replace(/[^a-z0-9-]/gi, "").toLowerCase() || "landed";
-  const opaque = createHash("sha256").update(`landed:email:${accountEmail.trim().toLowerCase()}`).digest("hex").slice(0, 24);
+  const opaque = createHash("sha256").update(`landed:account:${userId}`).digest("hex").slice(0, 24);
   return `${prefix}-${opaque}`;
 }
 
-/** Decision journal entries live beside lessons, never mixed into rule recall. */
-export function journalNamespace(accountEmail: string): string {
-  return `${userNamespace(accountEmail)}-journal`;
+export function journalNamespace(userId: string): string {
+  return `${userNamespace(userId)}-journal`;
 }
 
-/** Append-only lesson state changes (confidence, superseded, excluded). */
-export function updatesNamespace(accountEmail: string): string {
-  return `${userNamespace(accountEmail)}-updates`;
+export function updatesNamespace(userId: string): string {
+  return `${userNamespace(userId)}-updates`;
 }
 
 export async function namespaceForUser(userId: string): Promise<string> {
-  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { email: true } });
-  return userNamespace(user.email);
+  await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { id: true } });
+  return userNamespace(userId);
 }
 
 export async function memoryHealth(): Promise<MemoryHealth> {
@@ -176,7 +167,8 @@ function toValidated(record: {
 export async function writeMemoryToWalrus(userId: string, memoryId: string): Promise<MemoryWriteResult> {
   const record = await prisma.memoryRecord.findFirst({ where: { id: memoryId, userId } });
   if (!record) throw new Error("Memory not found");
-  if (record.writeStatus === "confirmed" && record.walrusBlobId) {
+  const namespace = record.category === "reasoning" ? journalNamespace(userId) : userNamespace(userId);
+  if (record.writeStatus === "confirmed" && record.walrusBlobId && record.namespace === namespace) {
     return {
       memoryId, writeStatus: "confirmed", blobId: record.walrusBlobId,
       jobId: record.jobId, error: null, confirmedAt: record.confirmedAt?.toISOString() ?? null,
@@ -198,14 +190,12 @@ export async function writeMemoryToWalrus(userId: string, memoryId: string): Pro
     return { memoryId, writeStatus: "blocked", blobId: null, jobId: null, error: message, confirmedAt: null };
   }
 
-  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { email: true } });
   // Journal entries carry their own text and live in a separate namespace so
   // they can never be recalled as a rule.
   const isJournal = record.category === "reasoning";
-  const namespace = isJournal ? journalNamespace(user.email) : userNamespace(user.email);
   await prisma.memoryRecord.update({
     where: { id: record.id },
-    data: { writeStatus: "writing", writeError: null, namespace },
+    data: { writeStatus: "writing", writeError: null },
   });
 
   const text = isJournal
@@ -227,7 +217,7 @@ export async function writeMemoryToWalrus(userId: string, memoryId: string): Pro
   try {
     const client = getClient();
     const result = await client.rememberAndWait(text, namespace, {
-      idempotencyKey: `landed-${record.id}`,
+      idempotencyKey: `${namespace}-${record.id}`,
       timeoutMs: 120_000,
       pollIntervalMs: 1_500,
     });
@@ -244,6 +234,14 @@ export async function writeMemoryToWalrus(userId: string, memoryId: string): Pro
         confirmedAt: new Date(),
       },
     });
+    // Updates written under the previous email-derived namespace need their
+    // own copies in this account's new namespace before they can be restored.
+    if (!isJournal && record.namespace && record.namespace !== namespace) {
+      await prisma.memoryUpdate.updateMany({
+        where: { userId, memoryId: record.id },
+        data: { writeStatus: "pending", walrusBlobId: null, confirmedAt: null, writeError: null },
+      });
+    }
     await prisma.auditEvent.create({
       data: {
         userId,
@@ -302,7 +300,6 @@ export async function recallApplicableMemories(
       createdAt: { lte: cutoff },
     },
     orderBy: { createdAt: "desc" },
-    take: 50,
   });
 
   if (!config.configured) {
@@ -354,8 +351,8 @@ export async function recallApplicableMemories(
         if (meta.memoryId) {
           const dbRow = await prisma.memoryRecord.findFirst({ where: { id: meta.memoryId, userId } });
           if (dbRow) {
-            if (dbRow.excluded || dbRow.supersededBy || dbRow.createdAt > cutoff) continue;
-            memories.push(toValidated(dbRow, hit.distance, meta.rule));
+            if (dbRow.excluded || dbRow.supersededBy || dbRow.createdAt > cutoff || !["verified", "user_confirmed"].includes(dbRow.verificationStatus) || dbRow.category === "reasoning") continue;
+            memories.push(toValidated(dbRow, hit.distance));
             continue;
           }
         }
@@ -371,7 +368,7 @@ export async function recallApplicableMemories(
           writeStatus: "confirmed",
           source: "walrus",
           createdAt: hit.created_at ?? new Date().toISOString(),
-          rule: meta.rule,
+          rule: null,
           distance: hit.distance,
         });
       }
@@ -393,12 +390,19 @@ export async function recallApplicableMemories(
       };
     }
 
+    // Financial protections apply consistently even when semantic recall omits one.
+    for (const row of localRows.filter(isSafetyRule)) {
+      if (!memories.some((m) => m.id === row.id)) {
+        memories.push(toValidated(row));
+        usedLocal = true;
+      }
+    }
     return {
       mode: usedLocal ? "mixed" : "walrus",
       query,
       memories,
       recalledCount: result.results.length,
-      error: null,
+      error: usedLocal ? "Some confirmed financial protections were loaded from the local ledger because they were not returned by this recall." : null,
       health,
     };
   } catch (error) {
@@ -412,6 +416,12 @@ export async function recallApplicableMemories(
       health,
     };
   }
+}
+
+const SAFETY_RULES = new Set(["BUFFER_FLOOR", "RESERVE_COMMITMENT", "EXCLUDE_EXPECTED_INCOME", "AMOUNT_CAP", "SPLIT_TRANSFER", "DELAY_REMAINDER"]);
+function isSafetyRule(row: { structuredRule: string | null }): boolean {
+  const rule = parseJson<MemoryRule | null>(row.structuredRule, null);
+  return Boolean(rule && SAFETY_RULES.has(rule.kind));
 }
 
 function pickLocalMatches<T extends {
@@ -429,7 +439,8 @@ function pickLocalMatches<T extends {
       return { row: r, score: overlap * 2 + routeBonus + r.confidence + (r.createdAt.getTime() / 1e13) };
     })
     .sort((a, b) => b.score - a.score);
-  return scored.slice(0, limit).map((s) => s.row);
+  const selected = scored.slice(0, limit).map((s) => s.row);
+  return [...selected, ...rows.filter((row) => isSafetyRule(row) && !selected.includes(row))];
 }
 
 export async function listMemories(userId: string) {
@@ -576,14 +587,14 @@ export async function flushLessonUpdates(userId: string, limit = 25): Promise<Fl
   const report: FlushReport = { written: 0, waiting: 0, blocked: 0, failed: 0 };
   const pending = await prisma.memoryUpdate.findMany({
     where: { userId, writeStatus: { in: ["pending", "blocked", "failed"] } },
-    include: { memory: { select: { writeStatus: true, walrusBlobId: true } } },
+    include: { memory: { select: { writeStatus: true, walrusBlobId: true, namespace: true } } },
     orderBy: { createdAt: "asc" },
   });
   if (pending.length === 0) return report;
 
   const config = memoryConfig();
   const onWalrus = (u: (typeof pending)[number]) =>
-    Boolean(u.memory.walrusBlobId) && (u.memory.writeStatus === "confirmed" || u.memory.writeStatus === "superseded");
+    Boolean(u.memory.walrusBlobId) && u.memory.namespace === userNamespace(userId) && (u.memory.writeStatus === "confirmed" || u.memory.writeStatus === "superseded");
   report.waiting = pending.filter((u) => !onWalrus(u)).length;
   const toWrite = pending.filter(onWalrus).slice(0, limit);
   if (toWrite.length === 0) return report;
@@ -597,8 +608,7 @@ export async function flushLessonUpdates(userId: string, limit = 25): Promise<Fl
     return report;
   }
 
-  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { email: true } });
-  const namespace = updatesNamespace(user.email);
+  const namespace = updatesNamespace(userId);
   const client = getClient();
   for (const u of toWrite) {
     try {
@@ -618,7 +628,7 @@ export async function flushLessonUpdates(userId: string, limit = 25): Promise<Fl
           reason: u.reason,
         }),
         namespace,
-        { idempotencyKey: `landed-update-${u.id}`, timeoutMs: 120_000, pollIntervalMs: 1_500 },
+        { idempotencyKey: `${namespace}-${u.id}`, timeoutMs: 120_000, pollIntervalMs: 1_500 },
       );
       await prisma.memoryUpdate.update({
         where: { id: u.id },
@@ -750,10 +760,9 @@ export interface WalrusInventory {
  * the independent check that a "confirmed" count is real.
  */
 export async function walrusInventory(userId: string): Promise<WalrusInventory> {
-  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { email: true } });
-  const ns = userNamespace(user.email);
-  const jns = journalNamespace(user.email);
-  const uns = updatesNamespace(user.email);
+  const ns = userNamespace(userId);
+  const jns = journalNamespace(userId);
+  const uns = updatesNamespace(userId);
   const base = {
     namespace: ns, journalNamespace: jns, updatesNamespace: uns,
     lessonBlobs: 0, journalBlobs: 0, updateBlobs: 0, matched: 0, onlyOnWalrus: 0, onlyLocal: 0, truncated: false,
@@ -843,7 +852,7 @@ export async function restoreFromWalrus(userId: string): Promise<RestoreReport> 
     return { ...empty, status: "blocked", error: `Walrus Memory is not configured (${config.missing.join(", ")}). Nothing can be restored.` };
   }
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
-  const ns = userNamespace(user.email);
+  const ns = userNamespace(userId);
   try {
     const client = getClient();
     const relayer = await client.restore(ns, 50);
@@ -907,7 +916,7 @@ export async function restoreFromWalrus(userId: string): Promise<RestoreReport> 
       created += 1;
     }
 
-    const { updatesApplied, evidenceRestored } = await replayLessonUpdates(userId, user.email, idMap);
+    const { updatesApplied, evidenceRestored } = await replayLessonUpdates(userId, idMap);
 
     await prisma.auditEvent.create({
       data: {
@@ -939,9 +948,9 @@ export async function restoreFromWalrus(userId: string): Promise<RestoreReport> 
  * lesson sets its confidence, supersession and exclusion, and every decisive
  * verdict becomes a MemoryEvidence row again, so the track record survives.
  */
-async function replayLessonUpdates(userId: string, email: string, idMap: Map<string, string>) {
+async function replayLessonUpdates(userId: string, idMap: Map<string, string>) {
   const client = getClient();
-  const namespace = updatesNamespace(email);
+  const namespace = updatesNamespace(userId);
   await client.restore(namespace, 50);
   const result = await client.recall({
     query: "LANDED lesson update confidence superseded excluded verdict",
@@ -1040,8 +1049,7 @@ export async function recallJournal(userId: string, query: string, limit = 4): P
   };
   if (!config.configured) return local("Walrus Memory is not configured; showing the local journal.");
   try {
-    const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { email: true } });
-    const result = await getClient().recall({ query, namespace: journalNamespace(user.email), limit, timeoutMs: 20_000 });
+      const result = await getClient().recall({ query, namespace: journalNamespace(userId), limit, timeoutMs: 20_000 });
     const hits = result.results.flatMap((hit) => {
       const parsed = parseJournalText(hit.text);
       return parsed ? [{ ...parsed, blobId: hit.blob_id, source: "walrus" as const }] : [];

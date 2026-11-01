@@ -25,7 +25,7 @@ const sections: { title: string; body: string[] }[] = [
   {
     title: "Walrus Memory",
     body: [
-      "Lessons you confirm — and, if you opt in, a journal of past advice — are written to Walrus Memory in a namespace derived from a hash of your sign-in email. Walrus Memory encrypts each blob. Blobs are permanent: no application, including LANDED, can delete them.",
+      "When Walrus Memory is configured, confirmed lessons and, if you opt in, a journal of past advice may be written to an encrypted namespace derived from your account ID. LANDED cannot delete blobs already written; they may remain available until their storage expires.",
       "Nothing becomes memory without your confirmation, drafts and rejected lessons are never written, and the decision journal is off unless you turn it on.",
     ],
   },
@@ -44,19 +44,19 @@ const sections: { title: string; body: string[] }[] = [
   {
     title: "Sharing",
     body: [
-      "We do not sell or share your data. Community route statistics are off by default; if you opt in, only de-identified cost and delivery errors are aggregated, and a statistic is published only once at least 3 people and 5 observations contribute.",
+      "Walrus, Tatum and the optional AI provider receive the information described above when their features are used. Community route statistics are off by default; if you opt in, de-identified cost and delivery errors are aggregated, and a statistic is published only once at least 3 people and 5 observations contribute. The demo account is shared, so its records are visible to other demo visitors.",
     ],
   },
   {
     title: "Your controls",
     body: [
-      "Export everything as JSON from Settings → Data & consent. Exclude any lesson from future advice. Change your password, which signs out every other device, or permanently delete your account from Settings → Profile. Deleting removes every record LANDED holds; Walrus blobs remain encrypted and unlinked.",
+      "Export everything as JSON from Settings → Data & consent. Exclude any lesson from future advice. Change your password, which signs out every other device, or permanently delete your account from Settings → Profile. Deleting removes your account records and associated audit entries from LANDED. Walrus blobs already written remain encrypted until their storage expires and cannot be removed by LANDED.",
     ],
   },
   {
     title: "Security",
     body: [
-      "Every database query is scoped to your account. Server-side keys never reach the browser. Writes are origin-checked and rate-limited. Money is handled as integers end to end.",
+      "Personal records are scoped to your account. Server-side integration keys are kept on the server. The app checks the origin of browser write requests and rate-limits selected operations. Amounts are stored in integer minor units.",
     ],
   },
 ];

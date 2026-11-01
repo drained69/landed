@@ -44,3 +44,17 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# demo video pipeline: final cut + narration inputs are committed;
+# deck renders, UI captures and the superseded 20s drafts are regenerable
+video-output/assets/slides/
+video-output/assets/slides-v/
+video-output/audit/
+video-output/LANDED-demo-wide.mp4
+video-output/LANDED-demo-vertical.mp4
+video-output/tools/venv/
+
+# misc local cruft
+*.log
+*.swp
+.railway/

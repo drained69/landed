@@ -71,7 +71,7 @@ const remembers = [
 ];
 
 const chores = [
-  "protect rent before anything else", "count income only once it lands", "rank routes by what actually arrives",
+  "protect rent before anything else", "count income only once it lands", "compare routes by what is expected to arrive",
   "spot a subscription price hike", "pace dining against your limit", "grade last week's advice",
   "remember a route that ran late", "split a risky transfer", "keep a cushion you never touch",
   "verify a Sui settlement via Tatum", "restore your memory on a new phone", "explain every number it changed",
@@ -79,7 +79,7 @@ const chores = [
 
 const stack = [
   { icon: Database, tag: "Walrus Memory · Mainnet", title: "Typed lessons, portable text", body: "Confirmed lessons are written to your namespace with their typed rule embedded. Recall is semantic; the database rule stays authoritative." },
-  { icon: History, tag: "Walrus · restore + inventory", title: "Total Recall on any device", body: "The namespace follows your sign-in, so restore() and recall rebuild your ledger anywhere; listMemories() independently counts what is stored." },
+  { icon: History, tag: "Walrus · restore + inventory", title: "Total Recall on any device", body: "The namespace follows your sign-in, so confirmed lessons can be restored for the same account. Storage counts can be checked independently." },
   { icon: Landmark, tag: "Tatum · Sui", title: "Settlement you can check", body: "Balances, history and transaction evidence. The server re-verifies a digest before anything is called onchain-verified." },
   { icon: LineChart, tag: "Tatum · Data API", title: "Sourced exchange rates", body: "Crypto balances and gas are valued only with a rate Tatum returns — shown with its source, never added to safe-to-move." },
   { icon: Fingerprint, tag: "Authorization", title: "Your database owns access", body: "Walrus is the memory layer, not the lock. Every query is scoped to the signed-in account before recall or write." },
@@ -155,7 +155,7 @@ export default async function LandingPage() {
           <div className="overflow-hidden rounded-[24px] border border-black/[0.06] bg-white shadow-[0_30px_80px_-40px_rgba(10,11,12,0.45)]">
             <div className="flex items-center justify-between gap-3 border-b border-black/[0.06] px-4 py-2.5">
               <p className="flex items-center gap-2 font-mono text-[11px] text-muted"><LogoMark size={16} /> landed · decision replay</p>
-              <span className="rounded-full border border-black/[0.08] bg-[#f6f6f4] px-2.5 py-0.5 font-mono text-[10px] text-muted">From the demo</span>
+              <span className="rounded-full border border-black/[0.08] bg-[#f6f6f4] px-2.5 py-0.5 font-mono text-[10px] text-muted">Illustrative example</span>
             </div>
             <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6">
               <div className="sm:col-span-2">
@@ -165,12 +165,12 @@ export default async function LandingPage() {
               <div className="rounded-2xl border border-black/[0.06] bg-[#f6f6f4] p-4">
                 <p className="font-mono text-[10.5px] text-muted">without memory</p>
                 <p className="mt-1 text-[26px] tabular-nums text-muted line-through decoration-black/20">$300.00</p>
-                <p className="mt-1 text-[12px] text-muted">A balance check says yes.</p>
+                <p className="mt-1 text-[12px] text-muted">Example without confirmed lessons.</p>
               </div>
               <div className="rounded-2xl border border-lime/25 bg-[#eef6f0] p-4">
                 <p className="font-mono text-[10.5px] text-lime">with LANDED</p>
                 <p className="mt-1 text-[26px] font-semibold tabular-nums text-cream">$150 now</p>
-                <p className="mt-1 text-[12px] text-cream/70">Then $150 after payday. Two remembered lessons applied.</p>
+                <p className="mt-1 text-[12px] text-cream/70">Reassess the remainder after payday. Two remembered lessons applied.</p>
               </div>
               <div className="space-y-2 sm:col-span-2">
                 {[
@@ -272,12 +272,12 @@ export default async function LandingPage() {
                 </span>
               </h2>
               <p className="mt-6 text-[16px] leading-7 text-muted">
-                LANDED spots subscriptions, price hikes and spending that runs hot — and only suggests. Say “remember this”
-                and it watches from then on. Every alert names the promise it is holding you to.
+                LANDED identifies recurring charges and spending patterns. Confirm a limit or approved subscription price
+                to receive alerts when recorded activity crosses it. Every alert names the rule behind it.
               </p>
               <div className="mt-6 flex gap-8 text-[13.5px]">
-                <p><span className="block font-display text-[32px] leading-none text-muted">0</span><span className="mt-1 block text-muted">alerts without memory</span></p>
-                <p><span className="block font-display text-[32px] leading-none text-lime">2</span><span className="mt-1 block text-muted">with the rules you set</span></p>
+                <p><span className="block font-display text-[32px] leading-none text-muted">0</span><span className="mt-1 block text-muted">example alerts without memory</span></p>
+                <p><span className="block font-display text-[32px] leading-none text-lime">2</span><span className="mt-1 block text-muted">example alerts with confirmed rules</span></p>
               </div>
             </div>
             <div className="rounded-[28px] bg-gradient-to-br from-[#f6d2c6] via-[#fbe9e2] to-[#fdf3d6] p-4 sm:p-6">
@@ -311,12 +311,12 @@ export default async function LandingPage() {
             <Eyebrow>Web2 welcome</Eyebrow>
             <h2 className="mx-auto mt-4 max-w-2xl font-display text-[34px] leading-[1.12] text-cream sm:text-[50px]">No crypto degree required.</h2>
             <p className="mx-auto mt-5 max-w-xl text-[16px] leading-7 text-muted">
-              The blockchain does its job out of sight: it keeps your memory and checks settlements. You just see money.
+              Configured integrations can store confirmed lessons and check supported transactions. You can use LANDED without crypto knowledge.
             </p>
             <div className="mt-10 grid gap-4 text-left sm:grid-cols-3">
               {[
                 ["Dollars, not tokens", "Balances, bills and limits in your currency. Crypto only appears if you connect a wallet — with a sourced dollar value."],
-                ["Your memory moves with you", "Sign in on a new phone and LANDED restores what it learned about you. Nothing to export, nothing to re-teach."],
+                ["Your memory moves with you", "Sign in to the same account on another device to access your records and restore available saved lessons."],
                 ["No bank login, no surprises", "Enter balances, import your bank's CSV, or sync a Sui wallet. LANDED never moves money."],
               ].map(([t, b]) => (
                 <div key={t} className="rounded-[22px] border border-black/[0.05] bg-white p-6">

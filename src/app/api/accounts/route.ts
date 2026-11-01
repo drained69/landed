@@ -1,15 +1,16 @@
+import { currencySchema } from "@/server/validation";
 import { z } from "zod";
 import { prisma } from "@/server/db";
 import { api, ApiError, parseBody } from "@/server/api";
 import { requireApiUser } from "@/server/auth";
-import { parseAmountToMinor } from "@/lib/money";
+import { parseApiAmount } from "@/server/validation";
 import { jsonString } from "@/server/db";
 
 const accountSchema = z.object({
-  name: z.string().min(1).max(80),
+  name: z.string().trim().min(1).max(80),
   accountType: z.enum(["bank", "cash", "wallet", "stablecoin", "savings"]),
   provider: z.string().max(80).optional().nullable(),
-  currency: z.string().length(3),
+  currency: currencySchema,
   balance: z.union([z.string(), z.number()]),
   isLiquid: z.boolean().default(true),
   includeInSafeToMove: z.boolean().default(true),
@@ -28,7 +29,7 @@ export const GET = api(async () => {
 export const POST = api(async (req) => {
   const user = await requireApiUser();
   const body = await parseBody(req, accountSchema);
-  const balanceMinor = parseAmountToMinor(body.balance, body.currency);
+  const balanceMinor = parseApiAmount(body.balance, body.currency);
   if (balanceMinor < 0) throw new ApiError(400, "INVALID_BALANCE", "A balance cannot be negative");
   const existing = await prisma.financialAccount.findUnique({
     where: { userId_name: { userId: user.id, name: body.name.trim() } },

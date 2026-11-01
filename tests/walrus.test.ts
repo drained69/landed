@@ -105,7 +105,7 @@ describe("Walrus Memory writes and inventory", () => {
     expect(a.blobId).toBeTruthy();
     expect(b.writeStatus).toBe("confirmed");
     const row = await prisma.memoryRecord.findUniqueOrThrow({ where: { id: ids.oldLimit } });
-    expect(row.namespace).toBe(memory.userNamespace(EMAIL));
+    expect(row.namespace).toBe(memory.userNamespace(userId));
 
     const inventory = await memory.walrusInventory(userId);
     expect(inventory).toMatchObject({ configured: true, lessonBlobs: 2, matched: 2, onlyOnWalrus: 0, onlyLocal: 0, error: null });
@@ -167,7 +167,7 @@ describe("decision journal", () => {
     const entry = await decisions.journalDecision(userId, decision.id);
     const row = await prisma.memoryRecord.findUniqueOrThrow({ where: { id: entry!.id } });
     expect(row.writeStatus).toBe("confirmed");
-    expect(row.namespace).toBe(memory.journalNamespace(EMAIL));
+    expect(row.namespace).toBe(memory.journalNamespace(userId));
 
     const journal = await memory.recallJournal(userId, "what did you tell me about sending money to my sister");
     expect(journal.mode).toBe("walrus");
@@ -179,13 +179,12 @@ describe("decision journal", () => {
   });
 });
 
-describe("Total Recall: a fresh install restores everything from Walrus", () => {
-  it("rebuilds lessons, their latest state, and the track record for the same person", async () => {
-    // Same person, new install: the old rows are gone and the new user id differs.
-    await prisma.user.delete({ where: { id: userId } });
-    const fresh = await prisma.user.create({ data: { email: "  Maya@Test.Landed ", name: "Maya" } });
-    expect(fresh.id).not.toBe(userId);
-    expect(await memory.namespaceForUser(fresh.id)).toBe(memory.userNamespace(EMAIL));
+describe("Total Recall restores the same account from Walrus", () => {
+  it("rebuilds lessons, their latest state, and the track record for the same account", async () => {
+    // Simulate a lost lesson ledger while preserving the authenticated account identity.
+    await prisma.memoryRecord.deleteMany({ where: { userId } });
+    const fresh = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    expect(await memory.namespaceForUser(fresh.id)).toBe(memory.userNamespace(userId));
 
     const report = await memory.restoreFromWalrus(fresh.id);
     expect(report.status).toBe("restored");
@@ -217,6 +216,34 @@ describe("Total Recall: a fresh install restores everything from Walrus", () => 
 
     const inventory = await memory.walrusInventory(fresh.id);
     expect(inventory).toMatchObject({ lessonBlobs: 3, journalBlobs: 1, updateBlobs: 2, onlyLocal: 0 });
+  });
+
+  it("does not restore lessons into a newly created account with the same email", async () => {
+    await prisma.user.delete({ where: { id: userId } });
+    const replacement = await prisma.user.create({ data: { email: EMAIL, name: "Maya" } });
+    expect(memory.userNamespace(replacement.id)).not.toBe(memory.userNamespace(userId));
+    const result = await memory.restoreFromWalrus(replacement.id);
+    expect(result).toMatchObject({ status: "restored", created: 0 });
+    expect(await prisma.memoryRecord.count({ where: { userId: replacement.id } })).toBe(0);
+  });
+
+  it("republishes a confirmed lesson and its updates into the current account namespace", async () => {
+    const owner = await prisma.user.findFirstOrThrow();
+    const oldNamespace = "landed-legacy-email";
+    const old = await client.rememberAndWait("legacy lesson", oldNamespace, { idempotencyKey: "legacy" });
+    const row = await prisma.memoryRecord.create({ data: {
+      userId: owner.id, category: "preference", summary: "Legacy lesson", lesson: "Legacy lesson",
+      structuredRule: JSON.stringify({ kind: "AMOUNT_CAP", capPercentOfSafe: 0.5 }), confidence: 0.7,
+      verificationStatus: "user_confirmed", writeStatus: "confirmed", namespace: oldNamespace, walrusBlobId: old.blob_id,
+    } });
+    await memory.recordLessonUpdate(owner.id, row.id, { kind: "confidence", verdict: "held", decisionId: "legacy-decision", confidenceBefore: 0.6, reason: "Held" });
+    // A legacy lesson is not eligible for updates in the new namespace yet.
+    expect((await memory.flushLessonUpdates(owner.id)).waiting).toBe(1);
+    const result = await memory.writeMemoryToWalrus(owner.id, row.id);
+    expect(result.writeStatus).toBe("confirmed");
+    expect(result.blobId).not.toBe(old.blob_id);
+    expect((await prisma.memoryRecord.findUniqueOrThrow({ where: { id: row.id } })).namespace).toBe(memory.userNamespace(owner.id));
+    expect((await memory.flushLessonUpdates(owner.id)).written).toBe(1);
   });
 
   it("is blocked, not faked, without credentials", async () => {

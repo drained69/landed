@@ -1,9 +1,10 @@
+import { Prisma } from "@prisma/client";
 import { createHash } from "node:crypto";
 import Papa from "papaparse";
 import { prisma } from "@/server/db";
 import { api, ApiError } from "@/server/api";
 import { requireApiUser } from "@/server/auth";
-import { parseAmountToMinor } from "@/lib/money";
+import { parseApiAmount } from "@/server/validation";
 import { rowDirection } from "@/server/csv";
 
 interface CsvRow {
@@ -78,7 +79,8 @@ export const POST = api(async (req) => {
   if (parsed.errors.length > 0 && parsed.data.length === 0) {
     throw new ApiError(400, "CSV_PARSE_ERROR", parsed.errors[0].message);
   }
-  const rows = parsed.data.slice(0, 5000);
+  if (parsed.data.length > 5000) throw new ApiError(400, "TOO_MANY_ROWS", "Import up to 5,000 rows at a time. Split this file into smaller files.");
+  const rows = parsed.data;
   let imported = 0;
   let skipped = 0;
 
@@ -91,7 +93,7 @@ export const POST = api(async (req) => {
     const direction = rowDirection(String(rawAmount), row.direction ?? row.Direction);
     let amountMinor: number;
     try {
-      amountMinor = Math.abs(parseAmountToMinor(rawAmount, currency));
+      amountMinor = Math.abs(parseApiAmount(rawAmount, currency));
     } catch {
       skipped += 1;
       continue;
@@ -119,7 +121,8 @@ export const POST = api(async (req) => {
         },
       });
       imported += 1;
-    } catch {
+    } catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
       skipped += 1;
     }
   }

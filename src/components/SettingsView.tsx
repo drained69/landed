@@ -7,8 +7,8 @@ import {
   CircleAlert, Database, Download, ExternalLink, Globe2, Landmark, Link2,
   Plus, RefreshCw, Route, Save, ShieldCheck, Trash2,
 } from "lucide-react";
-import { formatMinor } from "@/lib/money";
-import { del, errorMessage, patch, post } from "@/lib/client";
+import { decimalsFor, formatMinor } from "@/lib/money";
+import { del, errorMessage, minorToMajorString, patch, post } from "@/lib/client";
 import { Badge, Button, Card, CardHeader, ErrorNote, Field, inputClass, selectClass, Toggle } from "@/components/ui";
 import { AccountSecurity } from "@/components/AccountSecurity";
 
@@ -25,7 +25,7 @@ const currencies = ["USD", "EUR", "GBP", "PHP", "MXN", "INR", "NGN", "KES", "JPY
 function todayPlus(days: number) {
   const d = new Date();
   d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 export function SettingsView({
@@ -51,11 +51,11 @@ export function SettingsView({
 
   const [name, setName] = useState(user.name);
   const [currency, setCurrency] = useState(user.preferredCurrency);
-  const [safetyBuffer, setSafetyBuffer] = useState((user.safetyBufferMinor / 100).toFixed(2));
+  const [safetyBuffer, setSafetyBuffer] = useState(minorToMajorString(user.safetyBufferMinor, decimalsFor(user.preferredCurrency)));
   const [riskPosture, setRiskPosture] = useState(user.riskPosture);
   const [objective, setObjective] = useState(user.mainObjective ?? "");
 
-  const [balances, setBalances] = useState<Record<string, string>>(Object.fromEntries(accounts.map((a) => [a.id, (a.balanceMinor / 100).toFixed(2)])));
+  const [balances, setBalances] = useState<Record<string, string>>(Object.fromEntries(accounts.map((a) => [a.id, minorToMajorString(a.balanceMinor, decimalsFor(a.currency))])));
   const [newAccount, setNewAccount] = useState({ name: "", accountType: "bank", currency: user.preferredCurrency, balance: "", isLiquid: true });
   const [newBill, setNewBill] = useState({ name: "", amount: "", dueDate: todayPlus(7), recurrence: "none", priority: "essential" });
   const [newGoal, setNewGoal] = useState({ name: "", target: "", current: "0", monthly: "" });
@@ -84,6 +84,7 @@ export function SettingsView({
   }
 
   async function run(key: string, fn: () => Promise<void>) {
+    if (busy !== null) return;
     setBusy(key); setError(null); setNotice(null);
     try { await fn(); } catch (err) { setError(errorMessage(err)); } finally { setBusy(null); }
   }
@@ -129,14 +130,14 @@ export function SettingsView({
     await run("bill-add", async () => {
       await post("/api/commitments", { ...newBill, currency });
       setNewBill({ name: "", amount: "", dueDate: todayPlus(7), recurrence: "none", priority: "essential" });
-      flash("Commitment added. It now reduces safe-to-move until paid.");
+      flash("Bill added. Essential and important bills are included in your cash-flow forecast.");
     });
   }
 
   async function payBill(bill: Commitment) {
     await run(bill.id, async () => {
       await post(`/api/commitments/${bill.id}`, {});
-      flash(`${bill.name} marked paid. A posted transaction was recorded; the account balance was not auto-adjusted.`);
+      flash(`${bill.name} marked paid. A transaction was recorded. Update the account balance separately to keep your forecast current.`);
     });
   }
 
@@ -198,7 +199,7 @@ export function SettingsView({
         networkFee: "0",
         expectedReceived: form.expectedReceived || undefined,
         estimatedDeliveryHours: form.hours || "24",
-        source: form.source,
+        source: "user_entered",
       });
       setQuoteForms((prev) => ({ ...prev, [route.id]: { amount: "", fee: "", expectedReceived: "", hours: "24", source: "user_entered" } }));
       flash(`Quote added to ${route.name}.`);
@@ -234,10 +235,9 @@ export function SettingsView({
     <div className="space-y-5">
       <div>
         <p className="text-[11px] uppercase tracking-[0.16em] text-muted/80">Your controls</p>
-        <h1 className="mt-1.5 font-display text-[32px] leading-tight text-cream sm:text-[38px]">Nothing hidden.</h1>
+        <h1 className="mt-1.5 font-display text-[32px] leading-tight text-cream sm:text-[38px]">Settings</h1>
         <p className="mt-2 max-w-2xl text-[12.5px] leading-relaxed text-muted">
-          Edit every input LANDED uses, inspect integration status, replace synthetic quotes with your own, and export
-          the complete record. Missing credentials are shown as blocked, not simulated.
+          Manage your profile, balances, bills, and payment routes. Review connected services, control data sharing, and export your records.
         </p>
       </div>
 
@@ -249,12 +249,12 @@ export function SettingsView({
           ["integrations", "Integrations"],
           ["data", "Data & consent"],
         ] as const).map(([key, label]) => (
-          <button key={key} onClick={() => setTab(key)} className={`border-b-2 px-3 py-2.5 text-[11.5px] transition ${tab === key ? "border-lime text-cream" : "border-transparent text-muted hover:text-cream"}`}>{label}</button>
+          <button key={key} aria-pressed={tab === key} onClick={() => setTab(key)} className={`border-b-2 px-3 py-2.5 text-[11.5px] transition ${tab === key ? "border-lime text-cream" : "border-transparent text-muted hover:text-cream"}`}>{label}</button>
         ))}
       </div>
 
       {error ? <ErrorNote>{error}</ErrorNote> : null}
-      {notice ? <div className="rounded-xl border border-lime/25 bg-lime/[0.06] px-3.5 py-2.5 text-[11px] leading-relaxed text-lime">{notice}</div> : null}
+      {notice ? <div role="status" className="rounded-xl border border-lime/25 bg-lime/[0.06] px-3.5 py-2.5 text-[11px] leading-relaxed text-lime">{notice}</div> : null}
 
       {tab === "profile" ? (
         <div className="grid gap-4 lg:grid-cols-2">
@@ -283,21 +283,21 @@ export function SettingsView({
 
           <div className="space-y-4">
             <Card>
-              <CardHeader title="Honesty state" subtitle="What is real on this deployment right now." />
+              <CardHeader title="Data and connection status" subtitle="Your account data and the current availability of connected services." />
               <div className="space-y-3 border-t border-black/[0.06] px-5 py-4">
                 <div className="flex items-center justify-between text-[11px]"><span className="text-muted">Dataset</span><Badge tone={user.isDemo ? "amber" : "lime"}>{user.isDemo ? "Synthetic demo" : "Your records"}</Badge></div>
-                <div className="flex items-center justify-between text-[11px]"><span className="text-muted">Tatum Sui</span><Badge tone={integrations.tatum.configured ? "lime" : "amber"}>{integrations.tatum.configured ? (integrations.tatum.reachable ? "reachable" : "configured · error") : "not configured"}</Badge></div>
-                <div className="flex items-center justify-between text-[11px]"><span className="text-muted">Walrus Memory</span><Badge tone={integrations.walrus.configured ? "lime" : "amber"}>{integrations.walrus.configured ? (integrations.walrus.reachable ? "reachable" : "configured · error") : "not configured"}</Badge></div>
+                <div className="flex items-center justify-between text-[11px]"><span className="text-muted">Tatum Sui</span><Badge tone={integrations.tatum.configured && integrations.tatum.reachable ? "lime" : "amber"}>{integrations.tatum.configured ? (integrations.tatum.reachable ? "reachable" : "configured · error") : "not configured"}</Badge></div>
+                <div className="flex items-center justify-between text-[11px]"><span className="text-muted">Walrus Memory</span><Badge tone={integrations.walrus.configured && integrations.walrus.reachable ? "lime" : "amber"}>{integrations.walrus.configured ? (integrations.walrus.reachable ? "reachable" : "configured · error") : "not configured"}</Badge></div>
                 <div className="flex items-center justify-between text-[11px]"><span className="text-muted">AI explanation layer</span><Badge tone={integrations.ai.configured ? "lime" : "muted"}>{integrations.ai.configured ? "configured" : "off"}</Badge></div>
                 <p className="border-t border-black/[0.07] pt-3 text-[9.5px] leading-relaxed text-muted/70">Arithmetic never depends on the AI layer. Disabling it changes explanations, not decisions.</p>
               </div>
             </Card>
 
             <Card>
-              <CardHeader title="Memory namespace" subtitle="Derived server-side from your sign-in email (hashed), so your memory follows you to any device. Never accepted from a request." />
+              <CardHeader title="Memory account" subtitle="Your saved lessons are linked to your sign-in so they can be restored on another device." />
               <div className="border-t border-black/[0.06] px-5 py-4">
                 <p className="break-all rounded-lg bg-black/[0.04] p-2.5 font-mono text-[10px] text-lime/70">{memoryNamespace}</p>
-                <p className="mt-2 text-[9.5px] leading-relaxed text-muted/70">The database remains LANDED&apos;s authorization boundary. A Walrus delegate key can read the namespace; it cannot bypass ownership checks here.</p>
+                <p className="mt-2 text-[9.5px] leading-relaxed text-muted/70">This identifier links your account to its Walrus records. LANDED checks account ownership before accessing your lessons.</p>
               </div>
             </Card>
           </div>
@@ -308,7 +308,7 @@ export function SettingsView({
       {tab === "money" ? (
         <div className="space-y-4">
           <Card>
-            <CardHeader title="Accounts" subtitle="Balances are authoritative. A recorded transaction does not silently adjust them." right={<Badge tone="muted">{accounts.length}</Badge>} />
+            <CardHeader title="Accounts" subtitle="Keep balances current. Adding transactions does not update these balances automatically." right={<Badge tone="muted">{accounts.length}</Badge>} />
             <div className="divide-y divide-black/[0.06] border-t border-black/[0.06]">
               {accounts.map((account) => (
                 <div key={account.id} className="px-5 py-4">
@@ -333,12 +333,12 @@ export function SettingsView({
             <div className="border-t border-black/[0.06] px-5 py-4">
               <p className="text-[10px] uppercase tracking-[0.11em] text-muted">Add an account</p>
               <div className="mt-3 grid gap-2 sm:grid-cols-5">
-                <input className={`${inputClass} h-9`} placeholder="Name" value={newAccount.name} onChange={(e) => setNewAccount({ ...newAccount, name: e.target.value })} />
-                <select className={`${inputClass} h-9`} value={newAccount.accountType} onChange={(e) => setNewAccount({ ...newAccount, accountType: e.target.value })}>
+                <input className={`${inputClass} h-9`} aria-label="Name" placeholder="Name" value={newAccount.name} onChange={(e) => setNewAccount({ ...newAccount, name: e.target.value })} />
+                <select className={`${inputClass} h-9`} aria-label="Account type" value={newAccount.accountType} onChange={(e) => setNewAccount({ ...newAccount, accountType: e.target.value })}>
                   {["bank", "cash", "wallet", "stablecoin", "savings"].map((t) => <option key={t}>{t}</option>)}
                 </select>
-                <input className={`${inputClass} h-9`} placeholder="0.00" inputMode="decimal" value={newAccount.balance} onChange={(e) => setNewAccount({ ...newAccount, balance: e.target.value })} />
-                <select className={`${inputClass} h-9`} value={newAccount.currency} onChange={(e) => setNewAccount({ ...newAccount, currency: e.target.value })}>{currencies.map((c) => <option key={c}>{c}</option>)}</select>
+                <input className={`${inputClass} h-9`} aria-label="0.00" placeholder="0.00" inputMode="decimal" value={newAccount.balance} onChange={(e) => setNewAccount({ ...newAccount, balance: e.target.value })} />
+                <select className={`${inputClass} h-9`} aria-label="Account currency" value={newAccount.currency} onChange={(e) => setNewAccount({ ...newAccount, currency: e.target.value })}>{currencies.map((c) => <option key={c}>{c}</option>)}</select>
                 <Button size="sm" onClick={addAccount} loading={busy === "account-add"} disabled={!newAccount.name || !newAccount.balance}><Plus className="h-3 w-3" /> Add</Button>
               </div>
             </div>
@@ -362,13 +362,13 @@ export function SettingsView({
               </div>
               <div className="border-t border-black/[0.06] px-5 py-4">
                 <div className="grid gap-2 sm:grid-cols-2">
-                  <input className={`${inputClass} h-9`} placeholder="Bill name" value={newBill.name} onChange={(e) => setNewBill({ ...newBill, name: e.target.value })} />
-                  <input className={`${inputClass} h-9`} placeholder="Amount" inputMode="decimal" value={newBill.amount} onChange={(e) => setNewBill({ ...newBill, amount: e.target.value })} />
-                  <input className={`${inputClass} h-9`} type="date" value={newBill.dueDate} onChange={(e) => setNewBill({ ...newBill, dueDate: e.target.value })} />
-                  <select className={`${inputClass} h-9`} value={newBill.priority} onChange={(e) => setNewBill({ ...newBill, priority: e.target.value })}>
+                  <input className={`${inputClass} h-9`} aria-label="Bill name" placeholder="Bill name" value={newBill.name} onChange={(e) => setNewBill({ ...newBill, name: e.target.value })} />
+                  <input className={`${inputClass} h-9`} aria-label="Amount" placeholder="Amount" inputMode="decimal" value={newBill.amount} onChange={(e) => setNewBill({ ...newBill, amount: e.target.value })} />
+                  <input className={`${inputClass} h-9`} type="date" aria-label="Bill due date" value={newBill.dueDate} onChange={(e) => setNewBill({ ...newBill, dueDate: e.target.value })} />
+                  <select className={`${inputClass} h-9`} aria-label="Bill priority" value={newBill.priority} onChange={(e) => setNewBill({ ...newBill, priority: e.target.value })}>
                     <option value="essential">Essential</option><option value="important">Important</option><option value="discretionary">Optional</option>
                   </select>
-                  <select className={`${inputClass} h-9`} value={newBill.recurrence} onChange={(e) => setNewBill({ ...newBill, recurrence: e.target.value })}>
+                  <select className={`${inputClass} h-9`} aria-label="Bill recurrence" value={newBill.recurrence} onChange={(e) => setNewBill({ ...newBill, recurrence: e.target.value })}>
                     <option value="none">One time</option><option value="monthly">Monthly</option><option value="weekly">Weekly</option><option value="yearly">Yearly</option>
                   </select>
                   <Button size="sm" onClick={addBill} loading={busy === "bill-add"} disabled={!newBill.name || !newBill.amount}><Plus className="h-3 w-3" /> Add bill</Button>
@@ -388,7 +388,7 @@ export function SettingsView({
                     </div>
                     <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-black/[0.06]"><div className="h-full bg-lime" style={{ width: `${Math.min(100, (goal.currentMinor / Math.max(1, goal.targetMinor)) * 100)}%` }} /></div>
                     <div className="mt-2 flex items-center gap-2">
-                      <input className={`${inputClass} h-8 w-28 text-[11px]`} placeholder="Contribute" inputMode="decimal" value={contributions[goal.id] ?? ""} onChange={(e) => setContributions((prev) => ({ ...prev, [goal.id]: e.target.value }))} />
+                      <input className={`${inputClass} h-8 w-28 text-[11px]`} aria-label="Contribute" placeholder="Contribute" inputMode="decimal" value={contributions[goal.id] ?? ""} onChange={(e) => setContributions((prev) => ({ ...prev, [goal.id]: e.target.value }))} />
                       <Button size="sm" variant="secondary" onClick={() => contribute(goal)} loading={busy === goal.id} disabled={!contributions[goal.id]}>Contribute</Button>
                       <span className="text-[9px] text-muted">+{formatMinor(goal.monthlyContributionMinor, goal.currency)}/mo</span>
                     </div>
@@ -397,10 +397,10 @@ export function SettingsView({
               </div>
               <div className="border-t border-black/[0.06] px-5 py-4">
                 <div className="grid gap-2 sm:grid-cols-2">
-                  <input className={`${inputClass} h-9`} placeholder="Goal name" value={newGoal.name} onChange={(e) => setNewGoal({ ...newGoal, name: e.target.value })} />
-                  <input className={`${inputClass} h-9`} placeholder="Target" inputMode="decimal" value={newGoal.target} onChange={(e) => setNewGoal({ ...newGoal, target: e.target.value })} />
-                  <input className={`${inputClass} h-9`} placeholder="Current" inputMode="decimal" value={newGoal.current} onChange={(e) => setNewGoal({ ...newGoal, current: e.target.value })} />
-                  <input className={`${inputClass} h-9`} placeholder="Monthly" inputMode="decimal" value={newGoal.monthly} onChange={(e) => setNewGoal({ ...newGoal, monthly: e.target.value })} />
+                  <input className={`${inputClass} h-9`} aria-label="Goal name" placeholder="Goal name" value={newGoal.name} onChange={(e) => setNewGoal({ ...newGoal, name: e.target.value })} />
+                  <input className={`${inputClass} h-9`} aria-label="Target" placeholder="Target" inputMode="decimal" value={newGoal.target} onChange={(e) => setNewGoal({ ...newGoal, target: e.target.value })} />
+                  <input className={`${inputClass} h-9`} aria-label="Current" placeholder="Current" inputMode="decimal" value={newGoal.current} onChange={(e) => setNewGoal({ ...newGoal, current: e.target.value })} />
+                  <input className={`${inputClass} h-9`} aria-label="Monthly" placeholder="Monthly" inputMode="decimal" value={newGoal.monthly} onChange={(e) => setNewGoal({ ...newGoal, monthly: e.target.value })} />
                 </div>
                 <Button size="sm" className="mt-2" onClick={addGoal} loading={busy === "goal-add"} disabled={!newGoal.name || !newGoal.target}><Plus className="h-3 w-3" /> Add goal</Button>
               </div>
@@ -443,13 +443,11 @@ export function SettingsView({
               ) : <p className="border-t border-black/[0.06] px-5 py-3 text-[10px] text-amber/70">No quote yet. This route is ignored by ranking until you add one.</p>}
               <div className="border-t border-black/[0.06] px-5 py-3">
                 <div className="grid gap-2 sm:grid-cols-6">
-                  <input className={`${inputClass} h-9`} placeholder="Send" inputMode="decimal" value={quoteForms[route.id]?.amount ?? ""} onChange={(e) => updateQuote(route.id, { amount: e.target.value })} />
-                  <input className={`${inputClass} h-9`} placeholder="Fee" inputMode="decimal" value={quoteForms[route.id]?.fee ?? ""} onChange={(e) => updateQuote(route.id, { fee: e.target.value })} />
-                  <input className={`${inputClass} h-9`} placeholder="Expected" inputMode="decimal" value={quoteForms[route.id]?.expectedReceived ?? ""} onChange={(e) => updateQuote(route.id, { expectedReceived: e.target.value })} />
-                  <input className={`${inputClass} h-9`} placeholder="Hours" inputMode="numeric" value={quoteForms[route.id]?.hours ?? ""} onChange={(e) => updateQuote(route.id, { hours: e.target.value })} />
-                  <select className={`${inputClass} h-9`} value={quoteForms[route.id]?.source ?? "user_entered"} onChange={(e) => updateQuote(route.id, { source: e.target.value })}>
-                    <option value="user_entered">User quote</option><option value="provider_api">Provider</option><option value="demo">Demo</option>
-                  </select>
+                  <input className={`${inputClass} h-9`} aria-label="Send" placeholder="Send" inputMode="decimal" value={quoteForms[route.id]?.amount ?? ""} onChange={(e) => updateQuote(route.id, { amount: e.target.value })} />
+                  <input className={`${inputClass} h-9`} aria-label="Fee" placeholder="Fee" inputMode="decimal" value={quoteForms[route.id]?.fee ?? ""} onChange={(e) => updateQuote(route.id, { fee: e.target.value })} />
+                  <input className={`${inputClass} h-9`} aria-label="Expected" placeholder="Expected" inputMode="decimal" value={quoteForms[route.id]?.expectedReceived ?? ""} onChange={(e) => updateQuote(route.id, { expectedReceived: e.target.value })} />
+                  <input className={`${inputClass} h-9`} aria-label="Hours" placeholder="Hours" inputMode="numeric" value={quoteForms[route.id]?.hours ?? ""} onChange={(e) => updateQuote(route.id, { hours: e.target.value })} />
+                  <span className="self-center text-[11px] text-muted">Manually entered quote</span>
                   <Button size="sm" variant="secondary" onClick={() => addQuote(route)} loading={busy === `quote-${route.id}`} disabled={!quoteForms[route.id]?.amount}><Plus className="h-3 w-3" /> Quote</Button>
                 </div>
               </div>
@@ -458,15 +456,15 @@ export function SettingsView({
           <Card>
             <CardHeader title="Add a route" subtitle="Add the provider or method, then enter your own quote. LANDED does not invent live prices." />
             <div className="grid gap-2 border-t border-black/[0.06] px-5 py-4 sm:grid-cols-4">
-              <input className={`${inputClass} h-9`} placeholder="Name" value={newRoute.name} onChange={(e) => setNewRoute({ ...newRoute, name: e.target.value })} />
-              <input className={`${inputClass} h-9`} placeholder="Provider or method" value={newRoute.providerOrMethod} onChange={(e) => setNewRoute({ ...newRoute, providerOrMethod: e.target.value })} />
-              <select className={`${inputClass} h-9`} value={newRoute.payoutMethod} onChange={(e) => setNewRoute({ ...newRoute, payoutMethod: e.target.value })}>
+              <input className={`${inputClass} h-9`} aria-label="Name" placeholder="Name" value={newRoute.name} onChange={(e) => setNewRoute({ ...newRoute, name: e.target.value })} />
+              <input className={`${inputClass} h-9`} aria-label="Provider or method" placeholder="Provider or method" value={newRoute.providerOrMethod} onChange={(e) => setNewRoute({ ...newRoute, providerOrMethod: e.target.value })} />
+              <select className={`${inputClass} h-9`} aria-label="Payout method" value={newRoute.payoutMethod} onChange={(e) => setNewRoute({ ...newRoute, payoutMethod: e.target.value })}>
                 {["bank_deposit", "wallet", "cash_pickup", "mobile_money", "instant"].map((m) => <option key={m} value={m}>{m.replaceAll("_", " ")}</option>)}
               </select>
-              <select className={`${inputClass} h-9`} value={newRoute.routeType} onChange={(e) => setNewRoute({ ...newRoute, routeType: e.target.value })}>
+              <select className={`${inputClass} h-9`} aria-label="Route type" value={newRoute.routeType} onChange={(e) => setNewRoute({ ...newRoute, routeType: e.target.value })}>
                 {["bank", "remittance", "onchain", "mobile_money", "cash"].map((m) => <option key={m} value={m}>{m.replaceAll("_", " ")}</option>)}
               </select>
-              <input className={`${inputClass} h-9 sm:col-span-3`} placeholder="Description (optional)" value={newRoute.description} onChange={(e) => setNewRoute({ ...newRoute, description: e.target.value })} />
+              <input className={`${inputClass} h-9 sm:col-span-3`} aria-label="Description (optional)" placeholder="Description (optional)" value={newRoute.description} onChange={(e) => setNewRoute({ ...newRoute, description: e.target.value })} />
               <Button size="sm" onClick={addRoute} loading={busy === "route-add"} disabled={!newRoute.name || !newRoute.providerOrMethod}><Plus className="h-3 w-3" /> Add route</Button>
             </div>
           </Card>
@@ -476,19 +474,19 @@ export function SettingsView({
       {tab === "integrations" ? (
         <div className="grid gap-4 lg:grid-cols-2">
           <Card>
-            <CardHeader title="Tatum · Sui Mainnet" subtitle="Verified onchain reads only. No public-RPC substitution." right={<Landmark className="h-4 w-4 text-muted" />} />
+            <CardHeader title="Tatum · Sui Mainnet" subtitle="Read wallet balances and transaction evidence from the Sui network." right={<Landmark className="h-4 w-4 text-muted" />} />
             <div className="space-y-3 border-t border-black/[0.06] px-5 py-4">
-              <div className="flex items-center justify-between text-[11px]"><span className="text-muted">API key</span><Badge tone={integrations.tatum.configured ? "lime" : "amber"}>{integrations.tatum.configured ? "configured" : "missing"}</Badge></div>
-              <div className="flex items-center justify-between text-[11px]"><span className="text-muted">RPC reachable</span><span className={integrations.tatum.reachable ? "text-lime" : "text-amber"}>{integrations.tatum.reachable ? "yes" : "no"}</span></div>
+              <div className="flex items-center justify-between text-[11px]"><span className="text-muted">API key</span><Badge tone={integrations.tatum.configured && integrations.tatum.reachable ? "lime" : "amber"}>{integrations.tatum.configured ? "configured" : "missing"}</Badge></div>
+              <div className="flex items-center justify-between text-[11px]"><span className="text-muted">Network connection</span><span className={integrations.tatum.reachable ? "text-lime" : "text-amber"}>{integrations.tatum.reachable ? "yes" : "no"}</span></div>
               <div className="flex items-center justify-between text-[11px]"><span className="text-muted">Network</span><span className="text-cream/80">{integrations.tatum.network ?? "mainnet"}</span></div>
               <div className="flex items-center justify-between gap-4 text-[11px]"><span className="text-muted">Checkpoint</span><span className="truncate font-mono text-[9.5px] text-cream/70">{integrations.tatum.checkpoint ?? "—"}</span></div>
               {integrations.tatum.error ? <p className="rounded-lg bg-amber/[0.05] px-3 py-2 text-[10px] leading-relaxed text-amber/85">{integrations.tatum.error}</p> : null}
               <div className="space-y-2 border-t border-black/[0.07] pt-3">
-                <Field label="Sui wallet address"><input className={inputClass} value={walletAddress} onChange={(e) => setWalletAddress(e.target.value)} placeholder="0x… 64 hex characters" /></Field>
-                <div className="flex gap-2">
+                <Field label="Sui wallet address"><input className={inputClass} value={walletAddress} onChange={(e) => { setWalletAddress(e.target.value); setWalletResult(null); }} placeholder="0x… 64 hex characters" /></Field>
+                <div className="flex flex-wrap gap-2">
                   <input className={inputClass} value={walletLabel} onChange={(e) => setWalletLabel(e.target.value)} placeholder="Label" />
-                  <Button size="sm" variant="secondary" onClick={lookupWallet} loading={busy === "wallet"} disabled={!walletAddress}><RefreshCw className="h-3 w-3" /> Test read</Button>
-                  <Button size="sm" onClick={syncWallet} loading={busy === "wallet-sync"} disabled={!walletAddress}><Link2 className="h-3 w-3" /> Sync</Button>
+                  <Button size="sm" variant="secondary" onClick={lookupWallet} loading={busy === "wallet"} disabled={!walletAddress || busy !== null}><RefreshCw className="h-3 w-3" /> Test read</Button>
+                  <Button size="sm" onClick={syncWallet} loading={busy === "wallet-sync"} disabled={!walletAddress || busy !== null}><Link2 className="h-3 w-3" /> Sync</Button>
                 </div>
               </div>
               <div className="space-y-2 border-t border-black/[0.07] pt-3">
@@ -510,13 +508,13 @@ export function SettingsView({
           </Card>
 
           <Card>
-            <CardHeader title="Walrus Memory" subtitle="Lessons become persistent only when a blob ID is returned." right={<Database className="h-4 w-4 text-muted" />} />
+            <CardHeader title="Walrus Memory" subtitle="A lesson is confirmed as stored on Walrus when a storage ID is returned." right={<Database className="h-4 w-4 text-muted" />} />
             <div className="space-y-3 border-t border-black/[0.06] px-5 py-4">
-              <div className="flex items-center justify-between text-[11px]"><span className="text-muted">Credentials</span><Badge tone={integrations.walrus.configured ? "lime" : "amber"}>{integrations.walrus.configured ? "configured" : "missing"}</Badge></div>
+              <div className="flex items-center justify-between text-[11px]"><span className="text-muted">Credentials</span><Badge tone={integrations.walrus.configured && integrations.walrus.reachable ? "lime" : "amber"}>{integrations.walrus.configured ? "configured" : "missing"}</Badge></div>
               <div className="flex items-center justify-between text-[11px]"><span className="text-muted">Relayer</span><span className={integrations.walrus.reachable ? "text-lime" : "text-amber"}>{integrations.walrus.reachable ? "reachable" : "not reachable"}</span></div>
               <div className="flex items-center justify-between text-[11px]"><span className="text-muted">Write ready</span><span className="text-cream/80">{integrations.walrus.writeReady == null ? "unknown" : integrations.walrus.writeReady ? "yes" : "no"}</span></div>
               <div className="flex items-center justify-between gap-4 text-[11px]"><span className="text-muted">Server</span><span className="truncate font-mono text-[9.5px] text-cream/70">{integrations.walrus.serverUrl}</span></div>
-              {integrations.walrus.missing?.length ? <p className="rounded-lg bg-amber/[0.05] px-3 py-2 text-[10px] leading-relaxed text-amber/85">Missing server env: {integrations.walrus.missing.join(", ")}. Lessons remain in the local rehearsal ledger and are labelled as such.</p> : null}
+              {integrations.walrus.missing?.length ? <p className="rounded-lg bg-amber/[0.05] px-3 py-2 text-[10px] leading-relaxed text-amber/85">Walrus storage is not configured. Lessons remain saved in LANDED until the connection is available.</p> : null}
               {integrations.walrus.error ? <p className="rounded-lg bg-amber/[0.05] px-3 py-2 text-[10px] leading-relaxed text-amber/85">{integrations.walrus.error}</p> : null}
               <div className="rounded-lg bg-black/[0.02] p-3">
                 <p className="text-[9px] uppercase tracking-[0.1em] text-muted">Your namespace</p>
@@ -531,7 +529,7 @@ export function SettingsView({
             <div className="border-t border-black/[0.06] px-5 py-4">
               <div className="flex items-center gap-3">
                 <Badge tone={integrations.ai.configured ? "lime" : "muted"}>{integrations.ai.configured ? "configured" : "disabled"}</Badge>
-                <p className="text-[10px] leading-relaxed text-muted">Set AI_BASE_URL, AI_API_KEY, and AI_MODEL on the server to enable plain-language explanations. It never computes amounts, ranks routes, or writes memory.</p>
+                <p className="text-[10px] leading-relaxed text-muted">When enabled, AI explains the results in plain language. LANDED’s calculation engine determines amounts and recommendations.</p>
               </div>
             </div>
           </Card>
@@ -541,7 +539,7 @@ export function SettingsView({
       {tab === "data" ? (
         <div className="grid gap-4 lg:grid-cols-2">
           <Card>
-            <CardHeader title="Export everything" subtitle="JSON with accounts, transactions, bills, goals, routes, decisions, outcomes, memories, and consents." right={<Download className="h-4 w-4 text-muted" />} />
+            <CardHeader title="Export your data" subtitle="JSON with accounts, transactions, bills, goals, routes, decisions, outcomes, memories, and consents." right={<Download className="h-4 w-4 text-muted" />} />
             <div className="border-t border-black/[0.06] px-5 py-4">
               <a href="/api/export" className="inline-flex h-10 items-center gap-2 rounded-full bg-ink px-4 text-[12px] font-medium text-white transition hover:bg-black/80"><Download className="h-3.5 w-3.5" /> Download JSON</a>
               <p className="mt-3 text-[9.5px] leading-relaxed text-muted/70">Walrus blobs already written cannot be deleted by this application. The export notes this explicitly.</p>
@@ -558,12 +556,12 @@ export function SettingsView({
           </Card>
 
           <Card className="lg:col-span-2">
-            <CardHeader title="Data boundaries" subtitle="A plain-language summary of what this deployment stores." />
+            <CardHeader title="How your data is stored" subtitle="Where your records are kept and how they are used." />
             <div className="grid gap-3 border-t border-black/[0.06] px-5 py-4 sm:grid-cols-3">
               {[
-                ["Server database", "Owns authorization and the authoritative typed rules. Every query is filtered by your user ID."],
-                ["Walrus Memory", "Stores confirmed lessons, their updates and (if you opt in) your decision journal in your account's namespace. Blobs are encrypted by Walrus Memory and permanent: no app can delete them."],
-                ["No bank connection", "Balances are self-reported, CSV-imported, or verified onchain. Nothing is pulled from a bank without an explicit integration."],
+                ["Server database", "Stores your financial records and confirmed rules. Access is restricted to your signed-in account."],
+                ["Walrus Memory", "Stores confirmed lessons, their updates and (if you opt in) your decision journal in your account's namespace. Blobs are encrypted and cannot be deleted by LANDED; they may remain available until their storage expires."],
+                ["No bank connection", "Enter account balances yourself or sync a supported wallet. CSV imports add transactions; they do not update bank balances."],
               ].map(([title, body]) => (
                 <div key={title} className="rounded-xl border border-black/[0.07] bg-black/[0.015] p-3.5">
                   <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.1em] text-muted"><CircleAlert className="h-3 w-3" /> {title}</p>

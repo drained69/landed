@@ -108,7 +108,7 @@ export function rankRoutes(
     const adjustments: { label: string; delta: number; memoryId?: string }[] = [];
 
     for (const memory of memories) {
-      if (!memory.rule || memory.excluded || memory.supersededBy) continue;
+      if (!memory.rule || memory.excluded || memory.supersededBy || !["verified", "user_confirmed"].includes(memory.verificationStatus)) continue;
       const rule = memory.rule;
       if (rule.kind === "PAYOUT_DEDUCTION" && matches(rule.match, quote)) {
         const deduction = Math.round(expectedReceived * rule.observedPercent * Math.max(0.5, memory.confidence));
@@ -146,7 +146,7 @@ export function rankRoutes(
       fresh * weights.freshness;
 
     for (const memory of memories) {
-      if (!memory.rule || memory.excluded || memory.supersededBy) continue;
+      if (!memory.rule || memory.excluded || memory.supersededBy || !["verified", "user_confirmed"].includes(memory.verificationStatus)) continue;
       const rule = memory.rule;
       const confidence = Math.max(0.25, Math.min(1, memory.confidence));
       if (rule.kind === "ROUTE_PENALTY" && matches(rule.match, quote)) {

@@ -41,9 +41,10 @@ export function Button({
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant; size?: ButtonSize; loading?: boolean }) {
   return (
     <button
+      {...props}
       className={cn(buttonBase, buttonVariants[variant], buttonSizes[size], className)}
       disabled={props.disabled || loading}
-      {...props}
+      aria-busy={loading || undefined}
     >
       {loading ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" /> : null}
       {children}
@@ -126,7 +127,7 @@ export function Skeleton({ className }: { className?: string }) {
 
 export function ErrorNote({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cn("rounded-xl border border-red/25 bg-red/[0.07] px-3.5 py-2.5 text-[12px] leading-relaxed text-red", className)}>
+    <div role="alert" className={cn("rounded-xl border border-red/25 bg-red/[0.07] px-3.5 py-2.5 text-[12px] leading-relaxed text-red", className)}>
       {children}
     </div>
   );
@@ -134,7 +135,7 @@ export function ErrorNote({ children, className }: { children: ReactNode; classN
 
 export function SuccessNote({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cn("rounded-xl border border-lime/25 bg-lime/[0.07] px-3.5 py-2.5 text-[12px] leading-relaxed text-lime", className)}>
+    <div role="status" className={cn("rounded-xl border border-lime/25 bg-lime/[0.07] px-3.5 py-2.5 text-[12px] leading-relaxed text-lime", className)}>
       {children}
     </div>
   );

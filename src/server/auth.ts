@@ -78,6 +78,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     return null;
   }
   const u = session.user;
+  if (u.isDemo && process.env.LANDED_DEMO_ENABLED === "false") return null;
   return {
     id: u.id,
     email: u.email,

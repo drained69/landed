@@ -1,0 +1,57 @@
+[
+ {
+  "key": "01-hook",
+  "wide": "/Users/uba/projects/landed/video-output/assets/slides/01-hook.png",
+  "vert": "/Users/uba/projects/landed/video-output/assets/slides-v/01-hook.png"
+ },
+ {
+  "key": "02-problem",
+  "wide": "/Users/uba/projects/landed/video-output/assets/slides/02-problem.png",
+  "vert": "/Users/uba/projects/landed/video-output/assets/slides-v/02-problem.png"
+ },
+ {
+  "key": "03-overview",
+  "wide": "/Users/uba/projects/landed/video-output/assets/slides/03-overview.png",
+  "vert": "/Users/uba/projects/landed/video-output/assets/slides-v/03-overview.png"
+ },
+ {
+  "key": "04-plan",
+  "wide": "/Users/uba/projects/landed/video-output/assets/slides/04-plan.png",
+  "vert": "/Users/uba/projects/landed/video-output/assets/slides-v/04-plan.png"
+ },
+ {
+  "key": "05-answer",
+  "wide": "/Users/uba/projects/landed/video-output/assets/slides/05-answer.png",
+  "vert": "/Users/uba/projects/landed/video-output/assets/slides-v/05-answer.png"
+ },
+ {
+  "key": "06-why",
+  "wide": "/Users/uba/projects/landed/video-output/assets/slides/06-why.png",
+  "vert": "/Users/uba/projects/landed/video-output/assets/slides-v/06-why.png"
+ },
+ {
+  "key": "07-spend",
+  "wide": "/Users/uba/projects/landed/video-output/assets/slides/07-spend.png",
+  "vert": "/Users/uba/projects/landed/video-output/assets/slides-v/07-spend.png"
+ },
+ {
+  "key": "08-walrus",
+  "wide": "/Users/uba/projects/landed/video-output/assets/slides/08-walrus.png",
+  "vert": "/Users/uba/projects/landed/video-output/assets/slides-v/08-walrus.png"
+ },
+ {
+  "key": "09-track",
+  "wide": "/Users/uba/projects/landed/video-output/assets/slides/09-track.png",
+  "vert": "/Users/uba/projects/landed/video-output/assets/slides-v/09-track.png"
+ },
+ {
+  "key": "10-onchain",
+  "wide": "/Users/uba/projects/landed/video-output/assets/slides/10-onchain.png",
+  "vert": "/Users/uba/projects/landed/video-output/assets/slides-v/10-onchain.png"
+ },
+ {
+  "key": "11-close",
+  "wide": "/Users/uba/projects/landed/video-output/assets/slides/11-close.png",
+  "vert": "/Users/uba/projects/landed/video-output/assets/slides-v/11-close.png"
+ }
+]

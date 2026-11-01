@@ -7,7 +7,7 @@ import { z } from "zod";
 
 export const POST = api(async (req) => {
   const user = await requireApiUser();
-  const body = await parseBody(req, z.object({ message: z.string().min(1).max(1000) }));
+  const body = await parseBody(req, z.object({ message: z.string().trim().min(1).max(1000) }));
   const response = await askLanded(user.id, body.message);
   const decisionId = response.decision?.decision.id;
   if (decisionId) after(() => journalDecision(user.id, decisionId));

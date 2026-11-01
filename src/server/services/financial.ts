@@ -3,6 +3,7 @@ import { prisma, parseJson } from "@/server/db";
 import type {
   DecisionInputSnapshot, DecisionType, RouteQuoteInput, ValidatedMemory,
 } from "@/lib/types";
+import { decimalsFor, formatMinor } from "@/lib/money";
 import { computeCashFlow, type CashFlowInput } from "@/server/engine/cashflow";
 import { recallApplicableMemories } from "./memory";
 import { convertToMinor, getRates, type SourcedRate } from "./rates";
@@ -43,7 +44,7 @@ function deriveExpectedIncome(transactions: FinancialContext["transactions"]) {
   if (income.length === 0) return [];
   const groups = new Map<string, typeof income>();
   for (const tx of income) {
-    const key = tx.merchant ?? tx.description ?? "Income";
+    const key = `${tx.currency}:${tx.merchant ?? tx.description ?? "Income"}`;
     const list = groups.get(key) ?? [];
     list.push(tx);
     groups.set(key, list);
@@ -71,7 +72,7 @@ function deriveExpectedIncome(transactions: FinancialContext["transactions"]) {
     const expectedDate = new Date(latest.timestamp.getTime() + intervalDays * 86_400_000);
     results.push({
       id: `derived-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 30)}`,
-      label,
+      label: latest.merchant ?? latest.description ?? "Income",
       amountMinor: amount,
       currency: latest.currency,
       expectedDate,
@@ -81,12 +82,13 @@ function deriveExpectedIncome(transactions: FinancialContext["transactions"]) {
   return results;
 }
 
-export async function getFinancialContext(userId: string): Promise<FinancialContext> {
+export async function getFinancialContext(userId: string, currency?: string, asOf = new Date()): Promise<FinancialContext> {
+  const baseCurrency = currency ?? (await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { preferredCurrency: true } })).preferredCurrency;
   const [accounts, commitments, savingsGoals, transactions, routes] = await Promise.all([
     prisma.financialAccount.findMany({ where: { userId }, orderBy: { createdAt: "asc" } }),
     prisma.commitment.findMany({ where: { userId }, orderBy: { dueDate: "asc" } }),
     prisma.savingsGoal.findMany({ where: { userId }, orderBy: { createdAt: "asc" } }),
-    prisma.transaction.findMany({ where: { userId }, orderBy: { timestamp: "desc" }, take: 500 }),
+    prisma.transaction.findMany({ where: { userId, timestamp: { lte: asOf } }, orderBy: { timestamp: "desc" }, take: 500 }),
     prisma.paymentRoute.findMany({
       where: { userId },
       include: { quotes: { orderBy: { quotedAt: "desc" }, take: 5 } },
@@ -97,8 +99,8 @@ export async function getFinancialContext(userId: string): Promise<FinancialCont
   const expectedIncome = deriveExpectedIncome(transactions);
 
   const months = new Map<string, { incomeMinor: number; expenseMinor: number }>();
-  const cutoff = subDays(new Date(), 180);
-  const recent = transactions.filter((t) => t.timestamp >= cutoff && t.status === "posted");
+  const cutoff = subDays(asOf, 180);
+  const recent = transactions.filter((t) => t.timestamp >= cutoff && t.status === "posted" && t.currency === baseCurrency);
   for (const tx of recent) {
     const key = tx.timestamp.toISOString().slice(0, 7);
     const bucket = months.get(key) ?? { incomeMinor: 0, expenseMinor: 0 };
@@ -112,7 +114,7 @@ export async function getFinancialContext(userId: string): Promise<FinancialCont
     .map(([month, v]) => ({ month, ...v, netMinor: v.incomeMinor - v.expenseMinor }));
 
   const last90 = transactions.filter(
-    (t) => t.direction === "out" && t.status === "posted" && t.timestamp >= subDays(new Date(), 90),
+    (t) => t.direction === "out" && t.status === "posted" && t.currency === baseCurrency && t.timestamp >= subDays(asOf, 90),
   );
   const spendByDay = new Map<string, number>();
   for (const tx of last90) {
@@ -253,9 +255,9 @@ export async function buildDecisionInput(params: {
   snapshot: DecisionInputSnapshot;
   context: FinancialContext;
 }> {
-  const context = await getFinancialContext(params.userId);
-  const user = await prisma.user.findUniqueOrThrow({ where: { id: params.userId } });
   const asOf = params.date ? new Date(params.date) : new Date();
+  const context = await getFinancialContext(params.userId, params.currency, asOf);
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: params.userId } });
   const destinationCurrency = params.destinationCurrency ?? params.currency;
   let quotes = buildRouteQuoteInputs(context.routes, {
     amountMinor: params.amountMinor ?? 0,
@@ -273,18 +275,18 @@ export async function buildDecisionInput(params: {
     currency: params.currency,
     requestedAmountMinor: params.amountMinor,
     decisionType: params.decisionType,
-    sourceAccountId: params.sourceAccountId ?? context.accounts.find((a) => a.currency === params.currency && a.isLiquid)?.id ?? null,
+    sourceAccountId: params.sourceAccountId ?? null,
     destinationLabel: params.destinationLabel ?? null,
     destinationCurrency,
     routeQuotes: quotes,
     includeExpectedIncome: params.includeExpectedIncome ?? false,
     accounts: context.accounts.map((a) => ({
       id: a.id, name: a.name, balanceMinor: a.balanceMinor, currency: a.currency,
-      isLiquid: a.isLiquid, verificationStatus: a.verificationStatus, balanceSource: a.balanceSource,
+      isLiquid: a.isLiquid, includeInSafeToMove: a.includeInSafeToMove, verificationStatus: a.verificationStatus, balanceSource: a.balanceSource,
     })),
     commitments: context.commitments.map((c) => ({
       id: c.id, name: c.name, amountMinor: c.amountMinor, currency: c.currency,
-      dueDate: c.dueDate.toISOString(), priority: c.priority, recurrence: c.recurrence,
+      dueDate: c.dueDate.toISOString(), priority: c.priority, recurrence: c.recurrence, status: c.status,
     })),
     savingsGoals: context.savingsGoals.map((g) => ({
       id: g.id, name: g.name, currentMinor: g.currentMinor, targetMinor: g.targetMinor,
@@ -317,7 +319,7 @@ export function memoryQueryForSnapshot(snapshot: DecisionInputSnapshot): string 
     .map((c) => c.name)
     .join(", ");
   return [
-    `${snapshot.decisionType} ${snapshot.requestedAmountMinor ? (snapshot.requestedAmountMinor / 100).toFixed(2) : "safe amount"} ${snapshot.currency}`,
+    `${snapshot.decisionType} ${snapshot.requestedAmountMinor ? formatMinor(snapshot.requestedAmountMinor, snapshot.currency) : "safe amount"} ${snapshot.currency}`,
     snapshot.destinationLabel ? `to ${snapshot.destinationLabel}` : "",
     obligations ? `upcoming ${obligations}` : "",
     snapshot.expectedIncome.length > 0 ? "expected income reliability" : "",
@@ -330,12 +332,13 @@ export function cashFlowInputFromSnapshot(snapshot: DecisionInputSnapshot, memor
     asOf: new Date(snapshot.asOf),
     currency: snapshot.currency,
     accounts: snapshot.accounts,
-    commitments: snapshot.commitments.map((c) => ({ ...c, dueDate: new Date(c.dueDate), status: "upcoming" })),
+    commitments: snapshot.commitments.map((c) => ({ ...c, dueDate: new Date(c.dueDate), status: c.status ?? "upcoming" })),
     savingsGoals: snapshot.savingsGoals,
     expectedIncome: snapshot.expectedIncome.map((i) => ({ ...i, expectedDate: new Date(i.expectedDate) })),
     safetyBufferMinor: snapshot.safetyBufferMinor,
     includeExpectedIncome: snapshot.includeExpectedIncome,
     dailyVariableSpendMinor: snapshot.cashFlow.dailyVariableSpendMinor,
+    monthsObserved: snapshot.cashFlow.monthsObserved,
     previousShortfalls: snapshot.previousShortfalls,
     riskPosture: snapshot.riskPosture,
     memories,
@@ -452,8 +455,8 @@ export async function getDashboard(userId: string) {
   }
   if (retrieval.mode === "local_rehearsal") {
     insights.push({
-      title: "Memory is in rehearsal",
-      body: "Walrus is not configured on this deployment. Lessons are being applied from the local rehearsal ledger and are never presented as Mainnet writes.",
+      title: "Using locally confirmed lessons",
+      body: "Live Walrus recall is unavailable. Recommendations use confirmed lessons saved to this account.",
       tone: "warning",
     });
   }
@@ -468,7 +471,7 @@ export async function getDashboard(userId: string) {
       const rates = await getRates(foreign.map((c) => c.currency), baseCurrency);
       for (const c of foreign) {
         const rate = rates.get(c.currency.toUpperCase());
-        if (rate) valuations.push({ currency: c.currency, valueMinor: convertToMinor(BigInt(c.liquidMinor + c.nonLiquidMinor), 2, rate), rate });
+        if (rate) valuations.push({ currency: c.currency, valueMinor: convertToMinor(BigInt(c.liquidMinor + c.nonLiquidMinor), decimalsFor(c.currency), rate), rate });
       }
     } catch (error) {
       valuationNote = error instanceof Error ? error.message : "Tatum rates unavailable";

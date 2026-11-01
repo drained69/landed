@@ -69,6 +69,7 @@ export function PlanMove({ currency, routeCount }: { currency: string; routeCoun
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<GenerateResponse | null>(null);
+  const [resultCurrency, setResultCurrency] = useState(currency);
   const [acting, setActing] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [showAllAssumptions, setShowAllAssumptions] = useState(false);
@@ -96,6 +97,7 @@ export function PlanMove({ currency, routeCount }: { currency: string; routeCoun
       if (type !== "affordability") body.amount = amount;
       if (type === "send" && destination.trim()) body.destinationLabel = destination.trim();
       const response = await post<GenerateResponse>("/api/decisions", body);
+      setResultCurrency(destinationCurrency);
       setResult(response);
     } catch (err) {
       setError(errorMessage(err));
@@ -111,10 +113,10 @@ export function PlanMove({ currency, routeCount }: { currency: string; routeCoun
     try {
       if (action === "follow") {
         await post(`/api/decisions/${result.decision.id}/follow`);
-        setNotice("Marked as followed. Record the real outcome from the decision page to close the learning loop.");
+        setNotice("Marked as followed. Record the outcome on the decision page so LANDED can compare it with this estimate.");
       } else {
         await del(`/api/decisions/${result.decision.id}/follow`);
-        setNotice("Marked as not followed. LANDED keeps the recommendation and its inputs for the audit trail.");
+        setNotice("Marked as not followed. The recommendation remains in your decision history.");
       }
       router.refresh();
     } catch (err) {
@@ -126,22 +128,22 @@ export function PlanMove({ currency, routeCount }: { currency: string; routeCoun
 
   const action = result?.result.action;
   const baseline = result?.result.baselineAction;
-  const changed = Boolean(action && baseline && action.amountMinor !== baseline.amountMinor);
+  const changed = Boolean(result?.diffs.length);
 
   return (
     <div className="space-y-5">
       <div>
-        <p className="text-[11px] uppercase tracking-[0.16em] text-muted/80">Deterministic decision engine</p>
-        <h1 className="mt-1.5 font-display text-[32px] leading-tight text-cream sm:text-[38px]">What is actually safe?</h1>
+        <p className="text-[11px] uppercase tracking-[0.16em] text-muted/80">Plan with confidence</p>
+        <h1 className="mt-1.5 font-display text-[32px] leading-tight text-cream sm:text-[38px]">Plan your next money decision</h1>
         <p className="mt-2 max-w-2xl text-[12.5px] leading-relaxed text-muted">
-          Enter the move you are considering. LANDED simulates the next 45 days, protects essential obligations, applies
-          confirmed memory rules, and ranks every eligible route on realized recipient amount.
+          Check an amount against your next 45 days of bills, spending, and savings. LANDED applies your confirmed
+          lessons and compares available payment routes by the amount expected to arrive.
         </p>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
         <Card>
-          <CardHeader title="The move" subtitle="Amounts are parsed to integer minor units before any arithmetic." />
+          <CardHeader title="Your plan" subtitle="LANDED provides a recommendation. You choose whether to act on it." />
           <form onSubmit={generate} className="space-y-4 px-5 pb-5">
             <div className="grid grid-cols-2 gap-1 rounded-xl border border-black/[0.08] bg-black/[0.02] p-1 sm:grid-cols-4">
               {types.map((item) => (
@@ -149,6 +151,7 @@ export function PlanMove({ currency, routeCount }: { currency: string; routeCoun
                   key={item.key}
                   type="button"
                   onClick={() => setType(item.key)}
+                  aria-pressed={type === item.key}
                   className={`rounded-lg px-2 py-2 text-[11px] transition ${type === item.key ? "bg-black/[0.06] text-cream" : "text-muted hover:text-cream"}`}
                   title={item.hint}
                 >
@@ -158,7 +161,7 @@ export function PlanMove({ currency, routeCount }: { currency: string; routeCoun
             </div>
 
             {type !== "affordability" ? (
-              <Field label={`Amount (${currency})`} hint={type === "save" ? "Move to savings, not to another person." : undefined}>
+              <Field label={`Amount (${currency})`} hint={type === "save" ? "Amount you would like to set aside." : undefined}>
                 <div className="relative">
                   <span className="pointer-events-none absolute left-3 top-2.5 text-[13px] text-muted">{currency}</span>
                   <input className={`${inputClass} pl-12 text-[15px]`} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" required />
@@ -166,7 +169,7 @@ export function PlanMove({ currency, routeCount }: { currency: string; routeCoun
               </Field>
             ) : (
               <div className="rounded-xl border border-sky/20 bg-sky/[0.04] px-3.5 py-3 text-[11.5px] leading-relaxed text-sky/90">
-                Affordability mode returns the largest amount the simulation says is safe — no arbitrary number.
+                Estimate how much you can move while keeping your recorded commitments and safety buffer covered.
               </div>
             )}
 
@@ -188,7 +191,7 @@ export function PlanMove({ currency, routeCount }: { currency: string; routeCoun
                 checked={includeIncome}
                 onChange={setIncludeIncome}
                 label="Count expected income"
-                description="Off by default. If you enable it, income is weighted by observed reliability and a further 20% haircut. A remembered lesson can still exclude it."
+                description="Include forecast income in this estimate. LANDED adjusts it for reliability and reduces it by a further 20%. Confirmed lessons may exclude unreliable income."
               />
             </div>
 
@@ -210,13 +213,13 @@ export function PlanMove({ currency, routeCount }: { currency: string; routeCoun
               <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-lime/20 bg-lime/[0.06]">
                 <GitCompareArrows className="h-5 w-5 text-lime" />
               </span>
-              <p className="mt-5 font-display text-[24px] text-cream">Every answer shows its counterfactual.</p>
+              <p className="mt-5 font-display text-[24px] text-cream">See how your lessons affect the answer</p>
               <p className="mt-2 max-w-sm text-[12px] leading-relaxed text-muted">
-                You will see what LANDED would have said without memory, then exactly which recalled lessons changed
-                the constraint set — and why.
+                Compare a recommendation based on your current records with one that also uses your confirmed lessons.
+                Each adjustment includes an explanation.
               </p>
               <div className="mt-6 grid w-full max-w-sm grid-cols-3 gap-2 text-left">
-                {["Same input snapshot", "Only memory differs", "Typed rules, not vibes"].map((item) => (
+                {["Same financial records", "Confirmed lessons", "Explained adjustments"].map((item) => (
                   <div key={item} className="rounded-lg border border-black/[0.07] bg-black/[0.02] p-2.5 text-[10px] leading-relaxed text-muted">{item}</div>
                 ))}
               </div>
@@ -258,7 +261,7 @@ export function PlanMove({ currency, routeCount }: { currency: string; routeCoun
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px]">
                         <span className="text-cream">{formatMinor(action.split.firstMinor, action.currency)} now</span>
                         <ArrowRight className="h-3.5 w-3.5 text-lime" />
-                        <span className="text-cream">{formatMinor(action.split.remainderMinor, action.currency)} after</span>
+                        <span className="text-cream">{formatMinor(action.split.remainderMinor, action.currency)} after income arrives</span>
                         {action.split.remainderAfter ? <span className="text-[10.5px] text-muted">({new Date(action.split.remainderAfter).toLocaleDateString("en-US", { month: "short", day: "numeric" })})</span> : null}
                       </div>
                       <p className="mt-1.5 text-[10.5px] leading-relaxed text-muted">{action.split.reason}</p>
@@ -271,8 +274,8 @@ export function PlanMove({ currency, routeCount }: { currency: string; routeCoun
                       <p className={`mt-1 text-[17px] tabular-nums ${result.result.predicted.projectedBufferAfterMinor < 0 ? "text-red" : "text-cream"}`}>{formatMinor(result.result.predicted.projectedBufferAfterMinor, action.currency)}</p>
                     </div>
                     <div>
-                      <p className="text-[9.5px] uppercase tracking-[0.11em] text-muted">Shortfall risk</p>
-                      <p className="mt-1 text-[17px] tabular-nums text-cream">{Math.round(result.result.predicted.shortfallRisk * 100)}%</p>
+                      <p className="text-[9.5px] uppercase tracking-[0.11em] text-muted">Shortfall estimate</p>
+                      <p className="mt-1 text-[17px] text-cream">{result.result.predicted.shortfallRisk >= 1 ? "Projected shortfall" : result.result.predicted.shortfallRisk >= 0.7 ? "Buffer at risk" : "No shortfall projected"}</p>
                     </div>
                     <div>
                       <p className="text-[9.5px] uppercase tracking-[0.11em] text-muted">Expected fee</p>
@@ -280,7 +283,7 @@ export function PlanMove({ currency, routeCount }: { currency: string; routeCoun
                     </div>
                     <div>
                       <p className="text-[9.5px] uppercase tracking-[0.11em] text-muted">Expected received</p>
-                      <p className="mt-1 text-[13px] tabular-nums text-cream">{result.result.predicted.expectedReceivedMinor === null ? "—" : formatMinor(result.result.predicted.expectedReceivedMinor, destinationCurrency)}</p>
+                      <p className="mt-1 text-[13px] tabular-nums text-cream">{result.result.predicted.expectedReceivedMinor === null ? "—" : formatMinor(result.result.predicted.expectedReceivedMinor, resultCurrency)}</p>
                     </div>
                   </div>
 
@@ -292,7 +295,7 @@ export function PlanMove({ currency, routeCount }: { currency: string; routeCoun
                       <X className="h-3.5 w-3.5" /> Not now
                     </Button>
                     <Link href={`/app/decisions/${result.decision.id}`} className="inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[11.5px] text-muted transition hover:text-lime">
-                      Open full audit <ArrowRight className="h-3 w-3" />
+                      View decision details <ArrowRight className="h-3 w-3" />
                     </Link>
                   </div>
                   {notice ? <p className="mt-3 rounded-lg bg-lime/[0.06] px-3 py-2 text-[11px] leading-relaxed text-lime">{notice}</p> : null}
@@ -301,20 +304,20 @@ export function PlanMove({ currency, routeCount }: { currency: string; routeCoun
 
               <Card>
                 <CardHeader
-                  title="Without memory, the answer was different"
-                  subtitle="Same balances, bills, and quotes. The only difference is the recalled lesson set."
+                  title="Compare with and without memory"
+                  subtitle="Both recommendations use the same balances, bills, and quotes. One also includes your confirmed lessons."
                   right={<Badge tone={changed ? "amber" : "muted"}>{changed ? "changed" : "no change"}</Badge>}
                 />
                 <div className="grid gap-px border-t border-black/[0.06] bg-black/[0.06] sm:grid-cols-2">
                   <div className="bg-white p-4">
-                    <p className="text-[9.5px] uppercase tracking-[0.12em] text-muted">Baseline</p>
-                    <p className="mt-2 text-[25px] tabular-nums text-muted line-through decoration-black/20">{formatMinor(baseline.amountMinor, baseline.currency)}</p>
+                    <p className="text-[9.5px] uppercase tracking-[0.12em] text-muted">Without memory</p>
+                    <p className={`mt-2 text-[25px] tabular-nums text-muted ${action.amountMinor !== baseline.amountMinor ? "line-through decoration-black/20" : ""}`}>{formatMinor(baseline.amountMinor, baseline.currency)}</p>
                     <p className="mt-1 text-[10.5px] leading-relaxed text-muted">{baseline.headline}</p>
                   </div>
                   <div className="bg-lime/[0.035] p-4">
-                    <p className="text-[9.5px] uppercase tracking-[0.12em] text-lime">Memory-informed</p>
+                    <p className="text-[9.5px] uppercase tracking-[0.12em] text-lime">With memory</p>
                     <p className="mt-2 text-[25px] tabular-nums text-lime">{formatMinor(action.amountMinor, action.currency)}</p>
-                    <p className="mt-1 text-[10.5px] leading-relaxed text-cream/70">{changed ? "Recalled rules tightened the constraint set." : "No eligible lesson changed this decision."}</p>
+                    <p className="mt-1 text-[10.5px] leading-relaxed text-cream/70">{changed ? "Your confirmed lessons changed this recommendation." : "Your confirmed lessons leave this recommendation unchanged."}</p>
                   </div>
                 </div>
               </Card>
@@ -328,7 +331,7 @@ export function PlanMove({ currency, routeCount }: { currency: string; routeCoun
           <Card>
             <CardHeader
               title="Route ranking"
-              subtitle={result.result.routeComparison.corridor ? `${result.result.routeComparison.corridor} · ranked on realized recipient amount, evidence, and speed` : "No eligible corridor"}
+              subtitle={result.result.routeComparison.corridor ? `${result.result.routeComparison.corridor} · ranked by expected recipient amount, evidence, and speed` : "No eligible corridor"}
               right={<Badge tone="muted">{result.result.routeComparison.quotes.length} quoted</Badge>}
             />
             <div className="border-t border-black/[0.06]">
@@ -382,8 +385,8 @@ export function PlanMove({ currency, routeCount }: { currency: string; routeCoun
             <Card>
               <CardHeader
                 title="Assumptions"
-                subtitle="What the engine counted, and what it refused to count."
-                right={<button type="button" onClick={() => setShowAllAssumptions((v) => !v)} className="text-muted transition hover:text-cream" aria-label="Toggle assumptions"><ChevronDown className={`h-4 w-4 transition-transform ${showAllAssumptions ? "rotate-180" : ""}`} /></button>}
+                subtitle="The information included in this estimate, and any limitations."
+                right={<button type="button" onClick={() => setShowAllAssumptions((v) => !v)} className="text-muted transition hover:text-cream" aria-label="Show all assumptions" aria-expanded={showAllAssumptions}><ChevronDown className={`h-4 w-4 transition-transform ${showAllAssumptions ? "rotate-180" : ""}`} /></button>}
               />
               <div className="space-y-2 border-t border-black/[0.06] px-5 py-4">
                 {result.result.assumptions.slice(0, showAllAssumptions ? undefined : 3).map((assumption) => (

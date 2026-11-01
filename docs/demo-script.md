@@ -1,13 +1,13 @@
 # LANDED — 2–3 minute demo script
 
-Before recording:
+Before recording, use a dedicated demo database. The reset command below deletes all records in the configured database:
 
 ```bash
 pnpm db:reset
 pnpm dev
 ```
 
-Use a fresh browser profile or sign out so the demo starts at the marketing page. The seed is deterministic; the numbers below assume you reset immediately before recording.
+Use a fresh browser profile or sign out so the demo starts at the marketing page. Figures and integration status depend on the seed, current date, and configured services. Check the displayed values before recording; do not present these examples as guaranteed results.
 
 ---
 
@@ -27,15 +27,13 @@ Click **Open demo account**.
 
 Point at:
 
-- **Safe to move now: $130.00**
-- **Cleared: $5,024.50**
-- Protected commitments **$1,680.00**, near-term spending **$983.78**, buffer **$134.70** (a recalled lesson, "keep at least $150 after a discretionary transfer", raises the floor)
-- Memory applied: **Single-move cap at 50% of safe-to-move**
-- Cards: **Synthetic demo**, **Live Walrus recall**
+- **Safe to move now** and **Cleared**
+- Protected commitments, near-term spending, and the safety buffer
+- Any applied lessons and the displayed memory retrieval status
 
 > "The balance is not the answer. Rent, bills, spending, and a buffer are protected first. And one recalled lesson already caps this move at 50% of safe-to-move."
 
-> "Those lessons were just recalled from Walrus Mainnet, not from this server's database."
+> "The status shows whether the lessons came from Walrus or from this account’s saved records."
 
 ---
 
@@ -51,12 +49,11 @@ Click **Plan**.
 
 Point at the result:
 
-- **LANDED: $150.00 now, $150.00 after income**
-- **No-memory baseline: $300.00**
+- The recommendation and the **no-memory baseline**
 - Applied lessons with memory references: amount cap and route adjustment
 - Route comparison on realized recipient amount
 
-> "Same request, two answers. Without memory, $300. With memory, $150 now and the rest after payroll. Every adjustment names the lesson and the memory ID that caused it."
+> "This comparison shows how confirmed lessons affect the recommendation. Each adjustment explains which lesson caused it."
 
 ---
 
@@ -109,14 +106,14 @@ Point at:
 - **26 records**, **25 confirmed Mainnet writes** (each with a Walrus blob ID), 1 superseded lesson kept locally
 - **Getting sharper every week** chart: rules in force grow from 1 to 20; the week of the shortfall shows a red miss, and the advice after it worked
 - **Track record** tab: lessons tested by later outcomes, **6 verdicts held, 0 contradicted**, confidence moving e.g. **62% → 77%** for the Northline lesson
-- **Walrus verification → Total Recall**: counts from the relayer's own inventory and **Restore from Walrus** for a fresh install; the decision-journal toggle
+- **Walrus verification → Total Recall**: counts from the relayer's own inventory and **Restore from Walrus** for the same account; the decision-journal toggle
 
 Ask LANDED: “What did you tell me last time I asked about sending money?” — the journal answers with the question, the advice, and the reason.
 - Category, verification, write status, blob ID, decision, timestamp
 
 > "Every outcome judges the lessons that shaped it. Lessons that hold gain confidence and act more strongly next time; a lesson that applied and still failed loses confidence and gets flagged for review. Memory that can be wrong, and knows it."
 
-> "A lesson becomes confirmed only when Walrus returns a blob ID. The relayer's own inventory lists 20 lessons, 5 journal entries and 6 track-record updates, all matched to this ledger. Restore from Walrus rebuilds them on a fresh install."
+> "A lesson becomes confirmed only when Walrus returns a blob ID. The relayer's own inventory lists 20 lessons, 5 journal entries and 6 track-record updates, all matched to this ledger. Restore from Walrus rebuilds them for the same account."
 
 Open one lesson → point at the typed rule and the portable Walrus text.
 

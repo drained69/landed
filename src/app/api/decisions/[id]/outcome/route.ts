@@ -2,7 +2,7 @@ import { after } from "next/server";
 import { z } from "zod";
 import { api, ApiError, parseBody } from "@/server/api";
 import { requireApiUser } from "@/server/auth";
-import { parseAmountToMinor } from "@/lib/money";
+import { parseApiAmount } from "@/server/validation";
 import { recordOutcome } from "@/server/services/decisions";
 import { prisma } from "@/server/db";
 import { getTransactionEvidence } from "@/server/services/tatum";
@@ -30,15 +30,15 @@ export const POST = api(async (req, ctx) => {
 
   const recommended = JSON.parse(decision.recommendedAction) as { amountMinor: number; currency: string };
   const amountSentMinor = body.amountSent !== undefined
-    ? parseAmountToMinor(body.amountSent, decision.currency)
+    ? parseApiAmount(body.amountSent, decision.currency)
     : recommended.amountMinor;
   if (amountSentMinor <= 0) throw new ApiError(400, "INVALID_AMOUNT", "Amount sent must be greater than zero");
-  const actualFeeMinor = body.actualFee !== undefined ? parseAmountToMinor(body.actualFee, decision.currency) : null;
+  const actualFeeMinor = body.actualFee !== undefined ? parseApiAmount(body.actualFee, decision.currency) : null;
   const destinationCurrency = (JSON.parse(decision.inputSnapshot) as { destinationCurrency: string }).destinationCurrency;
   const actualReceivedMinor = body.actualReceived !== undefined
-    ? parseAmountToMinor(body.actualReceived, destinationCurrency)
+    ? parseApiAmount(body.actualReceived, destinationCurrency)
     : null;
-  const bufferAfterMinor = body.bufferAfter !== undefined ? parseAmountToMinor(body.bufferAfter, decision.currency) : null;
+  const bufferAfterMinor = body.bufferAfter !== undefined ? parseApiAmount(body.bufferAfter, decision.currency, -2_147_483_647) : null;
 
   // "Onchain verified" is a server-side claim, never a client one: the digest is
   // re-read through Tatum here, and a failed transaction is refused outright.

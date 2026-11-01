@@ -1,10 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { Hanken_Grotesk, JetBrains_Mono, Shantell_Sans } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-const sans = Hanken_Grotesk({ subsets: ["latin"], variable: "--font-hanken", display: "swap" });
-const hand = Shantell_Sans({ subsets: ["latin"], variable: "--font-shantell", display: "swap" });
-const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains", display: "swap" });
+const sans = localFont({ src: "./fonts/hanken-grotesk.woff2", variable: "--font-hanken", weight: "100 900", display: "swap" });
+const hand = localFont({ src: "./fonts/shantell-sans.woff2", variable: "--font-shantell", weight: "300 800", display: "swap" });
+const mono = localFont({ src: "./fonts/jetbrains-mono.woff2", variable: "--font-jetbrains", weight: "100 800", display: "swap" });
 
 export const metadata: Metadata = {
   title: "LANDED — money that remembers",

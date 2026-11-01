@@ -83,7 +83,7 @@ async function main() {
     if (rows.length === 0) continue;
 
     console.log(`\n${user.email}${user.isDemo ? " (synthetic demo account)" : ""}`);
-    console.log(`  namespace ${userNamespace(user.email)}`);
+    console.log(`  namespace ${userNamespace(user.id)}`);
 
     for (const row of rows) {
       attempted += 1;

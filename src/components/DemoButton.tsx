@@ -39,6 +39,7 @@ export function DemoButton({ className = "", label = "Open the live demo", varia
         {loading ? "Opening…" : label}
         <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
       </button>
+      <p className="mt-2 text-[11px] leading-relaxed text-muted">Shared demo · Use fictional information only.</p>
       {error ? <ErrorNote className="mt-3 max-w-sm">{error}</ErrorNote> : null}
     </div>
   );

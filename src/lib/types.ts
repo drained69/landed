@@ -79,11 +79,11 @@ export interface DecisionInputSnapshot {
   includeExpectedIncome: boolean;
   accounts: {
     id: string; name: string; balanceMinor: number; currency: string;
-    isLiquid: boolean; verificationStatus: string; balanceSource: string;
+    isLiquid: boolean; includeInSafeToMove?: boolean; verificationStatus: string; balanceSource: string;
   }[];
   commitments: {
     id: string; name: string; amountMinor: number; currency: string;
-    dueDate: string; priority: string; recurrence: string;
+    dueDate: string; priority: string; recurrence: string; status?: string;
   }[];
   savingsGoals: {
     id: string; name: string; currentMinor: number; targetMinor: number;

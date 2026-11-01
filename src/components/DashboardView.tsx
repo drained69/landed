@@ -34,8 +34,8 @@ function firstSentence(value: string) {
 
 const modeLabel: Record<string, { label: string; tone: "lime" | "amber" | "sky" }> = {
   walrus: { label: "Live Walrus recall", tone: "lime" },
-  local_rehearsal: { label: "Local rehearsal", tone: "amber" },
-  mixed: { label: "Walrus + local fallback", tone: "sky" },
+  local_rehearsal: { label: "Saved account lessons", tone: "amber" },
+  mixed: { label: "Walrus and account lessons", tone: "sky" },
 };
 
 export function DashboardView({ data, curve, spend }: { data: Dashboard; curve: Curve; spend: SpendSummary }) {
@@ -67,12 +67,12 @@ export function DashboardView({ data, curve, spend }: { data: Dashboard; curve: 
         <div>
           <p className="text-[11px] uppercase tracking-[0.16em] text-muted/80">{dateLabel}</p>
           <h1 className="mt-1.5 font-display text-[30px] leading-tight text-cream sm:text-[36px]">
-            Good {new Date().getHours() < 12 ? "morning" : new Date().getHours() < 18 ? "afternoon" : "evening"}, {data.user.name.split(" ")[0]}.
+            Welcome, {data.user.name.trim().split(/\s+/)[0] || "there"}.
           </h1>
-          <p className="mt-1.5 max-w-xl text-[12.5px] leading-relaxed text-muted">{data.user.mainObjective ?? "Keep the obligations covered, then move what is genuinely free."}</p>
+          <p className="mt-1.5 max-w-xl text-[12.5px] leading-relaxed text-muted">{data.user.mainObjective ?? "Plan your spending while keeping bills and your safety buffer covered."}</p>
         </div>
         <div className="flex items-center gap-2">
-          {data.user.isDemo ? <Badge tone="amber">Synthetic demo</Badge> : null}
+          {data.user.isDemo ? <Badge tone="amber">Demo data</Badge> : null}
           <Badge tone={mode.tone}>{mode.label}</Badge>
         </div>
       </div>
@@ -112,7 +112,7 @@ export function DashboardView({ data, curve, spend }: { data: Dashboard; curve: 
             <div className="mt-7">
               <div className="flex h-2 w-full overflow-hidden rounded-full bg-black/[0.05]">
                 {segments.map((segment) => (
-                  <div key={segment.label} className={segment.color} style={{ width: `${Math.max(0, (segment.value / cleared) * 100)}%` }} title={`${segment.label}: ${formatMinor(segment.value, data.baseCurrency)}`} />
+                  <div key={segment.label} className={`${segment.color} shrink-0`} style={{ width: `${Math.max(0, Math.min(100, (segment.value / cleared) * 100))}%` }} title={`${segment.label}: ${formatMinor(segment.value, data.baseCurrency)}`} />
                 ))}
               </div>
               <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5">
@@ -134,14 +134,14 @@ export function DashboardView({ data, curve, spend }: { data: Dashboard; curve: 
                 <p className="text-[10px] text-muted">{cf.projectedMinDate ? new Date(cf.projectedMinDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "45-day horizon"}</p>
               </div>
               <div>
-                <p className="text-[9.5px] uppercase tracking-[0.12em] text-muted">Engine confidence</p>
+                <p className="text-[9.5px] uppercase tracking-[0.12em] text-muted">Estimate confidence</p>
                 <p className="mt-1 text-[15px] tabular-nums text-cream">{Math.round(cf.confidence * 100)}%</p>
                 <p className="text-[10px] text-muted">{cf.missingInputs.length > 0 ? firstSentence(cf.missingInputs[0]) : "All required inputs present"}</p>
               </div>
               <div>
                 <p className="text-[9.5px] uppercase tracking-[0.12em] text-muted">Memory applied</p>
                 <p className="mt-1 text-[15px] tabular-nums text-cream">{cf.appliedMemories.length}</p>
-                <p className="text-[10px] text-muted">{cf.effects.length > 0 ? cf.effects[0].label : "No rule changed today's math"}</p>
+                <p className="text-[10px] text-muted">{cf.effects.length > 0 ? cf.effects[0].label : "No lesson adjusted this estimate"}</p>
               </div>
             </div>
 
@@ -155,7 +155,7 @@ export function DashboardView({ data, curve, spend }: { data: Dashboard; curve: 
           <Card className="p-5">
             <div className="flex items-center justify-between">
               <p className="text-[10.5px] uppercase tracking-[0.13em] text-muted">Learning</p>
-              <Link href="/app/learning" className="text-muted transition hover:text-lime"><ArrowUpRight className="h-3.5 w-3.5" /></Link>
+              <Link href="/app/learning" aria-label="View your lessons" className="text-muted transition hover:text-lime"><ArrowUpRight className="h-3.5 w-3.5" /></Link>
             </div>
             <div className="mt-4 flex items-baseline gap-2">
               <span className="font-display text-[34px] leading-none text-cream">{curve.summary.rulesInForce}</span>
@@ -163,8 +163,8 @@ export function DashboardView({ data, curve, spend }: { data: Dashboard; curve: 
             </div>
             <p className="mt-1.5 text-[11px] leading-relaxed text-muted">
               {curve.summary.sinceMiss
-                ? <>After the miss in week of {curve.summary.sinceMiss.weekLabel}, it learned <span className="text-cream">{curve.summary.sinceMiss.lessonsLearned} lessons</span>; <span className="text-lime">{curve.summary.sinceMiss.achieved} of {curve.summary.sinceMiss.outcomes}</span> answers since have worked.</>
-                : <>{curve.summary.achieved} of {curve.summary.outcomes} recorded answers worked.</>}
+                ? <>After the shortfall in the week of {curve.summary.sinceMiss.weekLabel}, it learned <span className="text-cream">{curve.summary.sinceMiss.lessonsLearned} lessons</span>; <span className="text-lime">{curve.summary.sinceMiss.achieved} of {curve.summary.sinceMiss.outcomes}</span> recorded outcomes since met the plan.</>
+                : <>{curve.summary.achieved} of {curve.summary.outcomes} recorded outcomes met the plan.</>}
             </p>
             <div className="mt-2">
               <LearningCurveChart weeks={curve.weeks} height={72} compact />
@@ -172,7 +172,7 @@ export function DashboardView({ data, curve, spend }: { data: Dashboard; curve: 
             <p className="mt-2 text-[11px] leading-relaxed text-muted">
               {data.learning.confirmedMemoryCount > 0
                 ? `${data.learning.confirmedMemoryCount} confirmed with a Walrus blob ID.`
-                : "Held in the local rehearsal ledger. No Mainnet write is claimed yet."}
+                : "Lessons are saved in your account. No Walrus write has been confirmed yet."}
             </p>
             <div className="mt-4 flex items-center justify-between border-t border-black/[0.07] pt-3 text-[10.5px]">
               <span className="text-muted">Evaluated outcomes</span>
@@ -186,7 +186,7 @@ export function DashboardView({ data, curve, spend }: { data: Dashboard; curve: 
 
           <Card className="p-5">
             <div className="flex items-center justify-between">
-              <p className="text-[10.5px] uppercase tracking-[0.13em] text-muted">Cleared by currency</p>
+              <p className="text-[10.5px] uppercase tracking-[0.13em] text-muted">Balances by currency</p>
               <Wallet className="h-3.5 w-3.5 text-muted" />
             </div>
             <div className="mt-4 space-y-2.5">
@@ -218,7 +218,7 @@ export function DashboardView({ data, curve, spend }: { data: Dashboard; curve: 
           <div className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <p className="flex items-center gap-2 text-[10.5px] uppercase tracking-[0.13em] text-amber">
-                <CircleAlert className="h-3.5 w-3.5" /> Outside what you told LANDED to hold
+                <CircleAlert className="h-3.5 w-3.5" /> Spending alerts
               </p>
               <ul className="mt-2 space-y-1">
                 {spend.alerts.slice(0, 3).map((alert) => (
@@ -239,7 +239,7 @@ export function DashboardView({ data, curve, spend }: { data: Dashboard; curve: 
         <Card>
           <CardHeader
             title="Income and spending"
-            subtitle="Posted transactions over the trailing months. Transfers you record do not silently rewrite balances."
+            subtitle="Recent income and expenses from your recorded transactions."
             right={<Link href="/app/activity" className="text-[11px] text-muted transition hover:text-lime">Ledger →</Link>}
           />
           <div className="px-3 pb-4 sm:px-5">
@@ -297,14 +297,14 @@ export function DashboardView({ data, curve, spend }: { data: Dashboard; curve: 
                 {insight.blobId ? <p className="mt-1.5 truncate font-mono text-[9px] text-lime/60">blob {insight.blobId}</p> : null}
               </div>
             ))}
-            {data.insights.length === 0 ? <p className="py-4 text-center text-[11.5px] text-muted">No memory insight yet. Record an outcome to start the loop.</p> : null}
+            {data.insights.length === 0 ? <p className="py-4 text-center text-[11.5px] text-muted">No lessons to show yet. Record an outcome to review what happened.</p> : null}
           </div>
         </Card>
 
         <Card>
           <CardHeader
             title="Recent decisions"
-            subtitle="Open any decision to see the exact inputs, prediction, and autopsy."
+            subtitle="Review each recommendation, its assumptions, and any recorded outcome."
             right={<Link href="/app/activity" className="text-[11px] text-muted transition hover:text-lime">All →</Link>}
           />
           <div className="divide-y divide-black/[0.06] border-t border-black/[0.06]">
@@ -313,7 +313,7 @@ export function DashboardView({ data, curve, spend }: { data: Dashboard; curve: 
               <Link key={decision.id} href={`/app/decisions/${decision.id}`} className="group flex items-start justify-between gap-3 px-5 py-3.5 transition hover:bg-black/[0.02]">
                 <div className="min-w-0">
                   <p className="truncate text-[12px] text-cream">{decision.objective}</p>
-                  <p className="mt-0.5 text-[10px] text-muted">{new Date(decision.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {decision.status}</p>
+                  <p className="mt-0.5 text-[10px] text-muted">{new Date(decision.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {decision.status.replaceAll("_", " ")}</p>
                 </div>
                 <div className="shrink-0 text-right">
                   <p className="text-[12.5px] tabular-nums text-lime">{decision.recommended ? formatMinor(decision.recommended.amountMinor, decision.recommended.currency) : "—"}</p>
@@ -326,14 +326,14 @@ export function DashboardView({ data, curve, spend }: { data: Dashboard; curve: 
       </div>
 
       <Card>
-        <CardHeader title="Accounts" subtitle="Balances are authoritative. Recording a transaction does not double-adjust them." right={<Link href="/app/settings" className="text-[11px] text-muted transition hover:text-lime">Manage →</Link>} />
+        <CardHeader title="Accounts" subtitle="Keep these balances up to date. Adding transactions does not automatically update account balances." right={<Link href="/app/settings" className="text-[11px] text-muted transition hover:text-lime">Manage →</Link>} />
         <div className="grid gap-px overflow-hidden border-t border-black/[0.06] bg-black/[0.05] sm:grid-cols-2 lg:grid-cols-3">
           {data.accounts.map((account) => (
             <div key={account.id} className="bg-white p-4">
               <div className="flex items-center justify-between gap-2">
                 <span className="flex items-center gap-2 text-[11px] text-muted">
                   {account.accountType === "savings" ? <PiggyBank className="h-3.5 w-3.5" /> : account.accountType === "stablecoin" || account.accountType === "wallet" ? <Wallet className="h-3.5 w-3.5" /> : <Landmark className="h-3.5 w-3.5" />}
-                  {account.accountType}
+                  {account.accountType.replaceAll("_", " ")}
                 </span>
                 {account.isSynthetic ? <Badge tone="muted" className="text-[8.5px]">Synthetic</Badge> : null}
               </div>

@@ -16,7 +16,7 @@ type Memory = {
   id: string; category: string; summary: string; lesson: string; confidence: number;
   verificationStatus: string; writeStatus: string; walrusBlobId: string | null; jobId: string | null;
   source: string; isSynthetic: boolean; createdAt: string | Date; confirmedAt: string | Date | null;
-  writeError: string | null; structuredRule: string | null; supersededBy: string | null;
+  writeError: string | null; structuredRule: string | null; supersededBy: string | null; namespace: string | null;
   decision: { id: string; objective: string; decisionType: string; status: string } | null;
   evidence: Evidence[];
 };
@@ -152,7 +152,7 @@ export function LearningView({ metrics, memories, decisions, verification, commu
   async function exclude(id: string, excluded: boolean) {
     setBusy(id); setError(null); setNotice(null);
     try {
-      const result = await patch<{ note: string }>(`/api/memories/${id}`, { excluded, reason: excluded ? "Excluded from future decisions in the memory ledger" : undefined });
+      const result = await patch<{ note: string }>(`/api/memories/${id}/feedback`, { excluded, reason: excluded ? "Excluded from future decisions in the memory ledger" : undefined });
       setNotice(result.note);
       router.refresh();
     } catch (err) { setError(errorMessage(err)); } finally { setBusy(null); }
@@ -198,8 +198,7 @@ export function LearningView({ metrics, memories, decisions, verification, commu
           <p className="text-[11px] uppercase tracking-[0.16em] text-muted/80">Persistent memory</p>
           <h1 className="mt-1.5 font-display text-[32px] leading-tight text-cream sm:text-[38px]">What LANDED remembers.</h1>
           <p className="mt-2 max-w-2xl text-[12.5px] leading-relaxed text-muted">
-            A lesson only influences advice after you confirm it. Every record shows its category, evidence, typed rule,
-            decision, and exact Walrus write status.
+            Review the lessons you confirmed, the outcomes that tested them, and their storage status. Draft lessons do not influence recommendations.
           </p>
         </div>
         <div className="flex gap-2">
@@ -208,6 +207,12 @@ export function LearningView({ metrics, memories, decisions, verification, commu
         </div>
       </div>
 
+      {memories.some((memory) => memory.namespace && memory.namespace !== (memory.category === "reasoning" ? verification.inventory.journalNamespace : verification.namespace) && ["user_confirmed", "verified"].includes(memory.verificationStatus)) ? (
+        <div role="note" className="rounded-xl border border-amber/30 bg-amber/10 px-4 py-3 text-[12px] leading-relaxed text-cream">
+          Some saved memories use an older storage location. Your local lessons still apply. Open each eligible memory and select “Save to current account storage” to make it available for restore in this account. Previously stored blobs remain in their original location.
+        </div>
+      ) : null}
+
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="p-4">
           <p className="text-[9.5px] uppercase tracking-[0.12em] text-muted">Confirmed Mainnet writes</p>
@@ -215,25 +220,25 @@ export function LearningView({ metrics, memories, decisions, verification, commu
           <p className="mt-1.5 text-[10px] leading-relaxed text-muted">Only records with a returned blob ID.</p>
         </Card>
         <Card className="p-4">
-          <p className="text-[9.5px] uppercase tracking-[0.12em] text-muted">Local rehearsal</p>
+          <p className="text-[9.5px] uppercase tracking-[0.12em] text-muted">Saved in LANDED</p>
           <p className="mt-2 font-display text-[30px] leading-none text-amber">{metrics.counts.localRehearsalMemories}</p>
-          <p className="mt-1.5 text-[10px] leading-relaxed text-muted">Never presented as a Walrus write.</p>
+          <p className="mt-1.5 text-[10px] leading-relaxed text-muted">Records not confirmed as stored on Walrus.</p>
         </Card>
         <Card className="p-4">
           <p className="text-[9.5px] uppercase tracking-[0.12em] text-muted">Objectives achieved</p>
-          <p className="mt-2 font-display text-[30px] leading-none text-cream">{Math.round(metrics.rates.objectiveRate * 100)}%</p>
+          <p className="mt-2 font-display text-[30px] leading-none text-cream">{metrics.counts.evaluated > 0 ? `${Math.round(metrics.rates.objectiveRate * 100)}%` : "—"}</p>
           <p className="mt-1.5 text-[10px] leading-relaxed text-muted">{metrics.counts.evaluated} evaluated outcomes.</p>
         </Card>
         <Card className="p-4">
           <p className="text-[9.5px] uppercase tracking-[0.12em] text-muted">Memory influence</p>
-          <p className="mt-2 font-display text-[30px] leading-none text-cream">{Math.round(metrics.rates.memoryInfluenceRate * 100)}%</p>
+          <p className="mt-2 font-display text-[30px] leading-none text-cream">{metrics.counts.decisions > 0 ? `${Math.round(metrics.rates.memoryInfluenceRate * 100)}%` : "—"}</p>
           <p className="mt-1.5 text-[10px] leading-relaxed text-muted">Decisions with at least one recalled lesson.</p>
         </Card>
       </div>
 
       <Card>
         <CardHeader
-          title="Getting sharper every week"
+          title="Learning over time"
           subtitle="Bars: rules LANDED has learned from you and keeps in force. Line: share of each week's advice that achieved its goal, from recorded outcomes only."
           right={<Badge tone="lime">{curve.summary.rulesAtStart} → {curve.summary.rulesInForce} rules</Badge>}
         />
@@ -250,17 +255,17 @@ export function LearningView({ metrics, memories, decisions, verification, commu
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
-          <CardHeader title="Prediction error" subtitle="Absolute mean error from confirmed outcomes only. Missing values are excluded, never imputed." right={<Badge tone="muted">{metrics.counts.evaluated} samples</Badge>} />
+          <CardHeader title="Prediction error" subtitle="Average difference between predicted and recorded results. Calculations include only outcomes with both values." right={<Badge tone="muted">{metrics.counts.evaluated} samples</Badge>} />
           <div className="grid gap-px border-t border-black/[0.06] bg-black/[0.06] sm:grid-cols-4">
             {[
-              { label: "Fee MAE", value: formatMinor(metrics.errors.feeMaeMinor, "USD"), n: metrics.errors.samples.fee },
-              { label: "Received MAE", value: formatMinor(metrics.errors.receivedMaeMinor, "USD"), n: metrics.errors.samples.received },
-              { label: "Delivery MAE", value: `${metrics.errors.deliveryMaeHours}h`, n: metrics.errors.samples.delivery },
-              { label: "Buffer MAE", value: formatMinor(metrics.errors.bufferMaeMinor, "USD"), n: metrics.errors.samples.buffer },
+              { label: "Fee difference", value: formatMinor(metrics.errors.feeMaeMinor, "USD"), n: metrics.errors.samples.fee },
+              { label: "Amount received", value: formatMinor(metrics.errors.receivedMaeMinor, "USD"), n: metrics.errors.samples.received },
+              { label: "Delivery time", value: `${metrics.errors.deliveryMaeHours}h`, n: metrics.errors.samples.delivery },
+              { label: "Buffer difference", value: formatMinor(metrics.errors.bufferMaeMinor, "USD"), n: metrics.errors.samples.buffer },
             ].map((item) => (
               <div key={item.label} className="bg-white p-4">
                 <p className="text-[9px] uppercase tracking-[0.1em] text-muted">{item.label}</p>
-                <p className="mt-2 text-[17px] tabular-nums text-cream">{item.value}</p>
+                <p className="mt-2 text-[17px] tabular-nums text-cream">{item.n > 0 ? item.value : "—"}</p>
                 <p className="mt-1 text-[9px] text-muted/60">{item.n} recorded</p>
               </div>
             ))}
@@ -270,7 +275,7 @@ export function LearningView({ metrics, memories, decisions, verification, commu
 
         <Card className="p-5">
           <p className="text-[9.5px] uppercase tracking-[0.12em] text-muted">Shortfall rate</p>
-          <p className="mt-2 font-display text-[34px] leading-none text-cream">{Math.round(metrics.rates.shortfallRate * 100)}%</p>
+          <p className="mt-2 font-display text-[34px] leading-none text-cream">{metrics.counts.evaluated > 0 ? `${Math.round(metrics.rates.shortfallRate * 100)}%` : "—"}</p>
           <Progress value={metrics.rates.shortfallRate * 100} tone={metrics.rates.shortfallRate > 0.3 ? "red" : "amber"} className="mt-3" />
           <div className="mt-5 space-y-2 text-[10.5px]">
             <div className="flex justify-between"><span className="text-muted">Achieved</span><span className="text-lime">{metrics.counts.achieved}</span></div>
@@ -286,28 +291,28 @@ export function LearningView({ metrics, memories, decisions, verification, commu
         {([
           ["ledger", `Memory ledger (${memories.length})`],
           ["track", `Track record (${tested.length})`],
-          ["autopsies", `Autopsies (${evaluated.length})`],
+          ["autopsies", `Outcome reviews (${evaluated.length})`],
           ["verification", "Walrus verification"],
           ["community", "Community"],
         ] as const).map(([key, label]) => (
-          <button key={key} onClick={() => setTab(key)} className={`border-b-2 px-3 py-2.5 text-[11.5px] transition ${tab === key ? "border-lime text-cream" : "border-transparent text-muted hover:text-cream"}`}>{label}</button>
+          <button key={key} aria-pressed={tab === key} onClick={() => setTab(key)} className={`border-b-2 px-3 py-2.5 text-[11.5px] transition ${tab === key ? "border-lime text-cream" : "border-transparent text-muted hover:text-cream"}`}>{label}</button>
         ))}
       </div>
 
       {error ? <ErrorNote>{error}</ErrorNote> : null}
-      {notice ? <div className="rounded-xl border border-lime/25 bg-lime/[0.06] px-3.5 py-2.5 text-[11px] leading-relaxed text-lime">{notice}</div> : null}
+      {notice ? <div role="status" className="rounded-xl border border-lime/25 bg-lime/[0.06] px-3.5 py-2.5 text-[11px] leading-relaxed text-lime">{notice}</div> : null}
 
       {tab === "ledger" ? (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative min-w-[200px] flex-1">
               <Search className="pointer-events-none absolute left-3 top-2.5 h-3.5 w-3.5 text-muted/60" />
-              <input className={`${inputClass} h-9 pl-8 text-[11.5px]`} placeholder="Search lessons, corrections, routes…" value={search} onChange={(e) => setSearch(e.target.value)} />
+              <input className={`${inputClass} h-9 pl-8 text-[11.5px]`} aria-label="Search lessons" placeholder="Search lessons, corrections, routes…" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
-            <select className={`${inputClass} h-9 w-auto text-[11px]`} value={category} onChange={(e) => setCategory(e.target.value)}>
+            <select className={`${inputClass} h-9 w-auto text-[11px]`} aria-label="Filter by category" value={category} onChange={(e) => setCategory(e.target.value)}>
               {categories.map((item) => <option key={item} value={item}>{item === "all" ? "All categories" : item.replaceAll("_", " ")}</option>)}
             </select>
-            <select className={`${inputClass} h-9 w-auto text-[11px]`} value={status} onChange={(e) => setStatus(e.target.value)}>
+            <select className={`${inputClass} h-9 w-auto text-[11px]`} aria-label="Filter by status" value={status} onChange={(e) => setStatus(e.target.value)}>
               <option value="all">All statuses</option>
               <option value="confirmed">Walrus confirmed</option>
               <option value="local">Local / blocked</option>
@@ -338,7 +343,7 @@ export function LearningView({ metrics, memories, decisions, verification, commu
                       ) : null}
                       <span className="ml-auto text-[9px] text-muted/50">{shortDate(memory.createdAt)} · {Math.round(memory.confidence * 100)}%</span>
                     </div>
-                    <button type="button" onClick={() => setOpenMemory(isOpen ? null : memory.id)} className="mt-2 flex w-full items-start gap-2 text-left">
+                    <button type="button" aria-expanded={isOpen} onClick={() => setOpenMemory(isOpen ? null : memory.id)} className="mt-2 flex w-full items-start gap-2 text-left">
                       <p className="flex-1 text-[12px] leading-relaxed text-cream">{memory.summary}</p>
                       <ChevronDown className={`mt-0.5 h-3.5 w-3.5 shrink-0 text-muted/50 transition ${isOpen ? "rotate-180" : ""}`} />
                     </button>
@@ -385,13 +390,13 @@ export function LearningView({ metrics, memories, decisions, verification, commu
                               <Button size="sm" variant="secondary" onClick={() => memoryFeedback(memory.id, "reject")} disabled={busy === memory.id}><X className="h-3 w-3" /> Reject</Button>
                             </>
                           ) : null}
-                          {memory.writeStatus !== "confirmed" && memory.verificationStatus !== "hypothesis" && memory.verificationStatus !== "rejected" ? (
-                            <Button size="sm" variant="outline" onClick={() => writeMemory(memory.id)} loading={busy === memory.id}><Database className="h-3 w-3" /> Write to Walrus</Button>
+                          {(memory.writeStatus !== "confirmed" || (memory.namespace && memory.namespace !== (memory.category === "reasoning" ? verification.inventory.journalNamespace : verification.namespace))) && memory.verificationStatus !== "hypothesis" && memory.verificationStatus !== "rejected" ? (
+                            <Button size="sm" variant="outline" onClick={() => writeMemory(memory.id)} loading={busy === memory.id}><Database className="h-3 w-3" /> {memory.namespace && memory.namespace !== (memory.category === "reasoning" ? verification.inventory.journalNamespace : verification.namespace) ? "Save to current account storage" : "Write to Walrus"}</Button>
                           ) : null}
                           {memory.walrusBlobId ? (
                             <a href={`https://walruscan.com/blob/${memory.walrusBlobId}`} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-full border border-lime/25 px-3 text-[10px] text-lime transition hover:bg-lime/[0.08]">View blob <ExternalLink className="h-2.5 w-2.5" /></a>
                           ) : null}
-                          <button type="button" onClick={() => exclude(memory.id, !memory.supersededBy)} className="ml-auto text-[10px] text-muted transition hover:text-red">
+                          <button type="button" disabled={Boolean(memory.supersededBy) || busy !== null} onClick={() => exclude(memory.id, true)} className="ml-auto text-[10px] text-muted transition hover:text-red">
                             {memory.supersededBy ? "Already excluded" : "Exclude from decisions"}
                           </button>
                         </div>
@@ -409,7 +414,7 @@ export function LearningView({ metrics, memories, decisions, verification, commu
         <div className="space-y-3">
           <Card>
             <CardHeader
-              title="Do the lessons actually work?"
+              title="Lesson performance"
               subtitle="Every recorded outcome judges the lessons that shaped its decision. Held lessons gain confidence and act more strongly next time; lessons that applied and still failed lose it and are flagged for review. Nothing is deleted."
             />
             <div className="grid gap-px border-t border-black/[0.06] bg-black/[0.06] sm:grid-cols-4">
@@ -438,7 +443,7 @@ export function LearningView({ metrics, memories, decisions, verification, commu
                   <div key={memory.id} className="grid gap-3 px-5 py-4 sm:grid-cols-[1fr_220px] sm:items-center">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        {needsReview ? <Badge tone="red">Needs review</Badge> : held > 0 && wrong === 0 ? <Badge tone="lime">Proven {held}×</Badge> : <Badge tone="amber">Mixed</Badge>}
+                        {needsReview ? <Badge tone="red">Needs review</Badge> : held > 0 && wrong === 0 ? <Badge tone="lime">Supported {held}×</Badge> : <Badge tone="amber">Mixed</Badge>}
                         <span className="text-[9px] uppercase tracking-[0.1em] text-muted/60">{memory.category.replaceAll("_", " ")}</span>
                       </div>
                       <p className="mt-1.5 text-[12px] leading-relaxed text-cream">{memory.summary}</p>
@@ -469,7 +474,7 @@ export function LearningView({ metrics, memories, decisions, verification, commu
 
       {tab === "autopsies" ? (
         <div className="space-y-3">
-          {evaluated.length === 0 ? <Card className="p-8 text-center text-[11.5px] text-muted">No evaluated decisions yet. Record an outcome from a decision page to start the autopsy loop.</Card> : null}
+          {evaluated.length === 0 ? <Card className="p-8 text-center text-[11.5px] text-muted">No evaluated decisions yet. Record an outcome from a decision page to review the recommendation and identify lessons.</Card> : null}
           {evaluated.map((decision) => {
             const outcome = decision.outcomes[0];
             const errors = (() => { try { return JSON.parse(outcome.predictionError) as Record<string, number | null>; } catch { return {}; } })();
@@ -491,7 +496,7 @@ export function LearningView({ metrics, memories, decisions, verification, commu
                     {decision.memories[0] ? <p className="mt-2 text-[10.5px] leading-relaxed text-muted">Lesson: {decision.memories[0].summary}</p> : null}
                   </div>
                   <Link href={`/app/decisions/${decision.id}`} className="inline-flex h-8 items-center gap-1.5 rounded-full border border-black/[0.1] px-3 text-[10.5px] text-muted transition hover:border-lime/30 hover:text-lime">
-                    Open autopsy <ArrowRight className="h-3 w-3" />
+                    Review outcome <ArrowRight className="h-3 w-3" />
                   </Link>
                 </div>
               </Card>
@@ -505,15 +510,15 @@ export function LearningView({ metrics, memories, decisions, verification, commu
           <Card className="lg:col-span-2">
             <CardHeader
               title="Total Recall"
-              subtitle="Your memory belongs to your account, not this device. The namespace is derived from your sign-in, so a fresh install recovers the same lessons from Walrus Mainnet."
+              subtitle="Restore available lessons saved to Walrus for this account. Sign in to the same account on another device to access them; a newly created account has separate storage."
               right={<Button size="sm" onClick={restore} loading={busy === "restore"}><RefreshCw className="h-3.5 w-3.5" /> Restore from Walrus</Button>}
             />
             <div className="grid gap-px border-t border-black/[0.06] bg-black/[0.06] sm:grid-cols-4">
               {[
-                { label: "Lessons on Walrus", value: verification.inventory.configured ? String(verification.inventory.lessonBlobs) : "—", tone: "text-lime" },
-                { label: "Journal · updates on Walrus", value: verification.inventory.configured ? `${verification.inventory.journalBlobs} · ${verification.inventory.updateBlobs}` : "—" },
-                { label: "Matched to this ledger", value: verification.inventory.configured ? String(verification.inventory.matched) : "—" },
-                { label: "Recoverable here", value: verification.inventory.configured ? String(verification.inventory.onlyOnWalrus) : "—", tone: verification.inventory.onlyOnWalrus > 0 ? "text-amber" : "" },
+                { label: "Lessons on Walrus", value: verification.inventory.configured && !verification.inventory.error ? String(verification.inventory.lessonBlobs) : "—", tone: "text-lime" },
+                { label: "Journal · updates on Walrus", value: verification.inventory.configured && !verification.inventory.error ? `${verification.inventory.journalBlobs} · ${verification.inventory.updateBlobs}` : "—" },
+                { label: "Matched to this ledger", value: verification.inventory.configured && !verification.inventory.error ? String(verification.inventory.matched) : "—" },
+                { label: "Recoverable here", value: verification.inventory.configured && !verification.inventory.error ? String(verification.inventory.onlyOnWalrus) : "—", tone: verification.inventory.onlyOnWalrus > 0 ? "text-amber" : "" },
               ].map((item) => (
                 <div key={item.label} className="bg-white p-4">
                   <p className="text-[9px] uppercase tracking-[0.1em] text-muted">{item.label}</p>
@@ -523,8 +528,7 @@ export function LearningView({ metrics, memories, decisions, verification, commu
             </div>
             <div className="grid gap-4 border-t border-black/[0.06] px-5 py-4 sm:grid-cols-2">
               <p className="text-[10.5px] leading-relaxed text-muted">
-                Counts come from the relayer&apos;s own inventory (<span className="font-mono">listMemories</span>), not from LANDED&apos;s database — an independent check that “confirmed” means stored.
-                Walrus blobs are immutable, so confidence changes and replaced lessons are appended as updates; a restore replays them newest-first and rebuilds the track record.
+                Storage counts are checked against Walrus. Restoring recovers available lessons and their saved updates, including confidence changes and outcome records.
                 {verification.inventory.onlyLocal > 0 ? ` ${verification.inventory.onlyLocal} locally confirmed record(s) are not listed by the relayer yet.` : ""}
                 {verification.inventory.error ? ` ${verification.inventory.error}` : ""}
               </p>
@@ -596,7 +600,7 @@ export function LearningView({ metrics, memories, decisions, verification, commu
               <Toggle checked={consentState.product_updates ?? false} onChange={(next) => toggleConsent("product_updates", next)} disabled={busy === "product_updates"} label="Product updates" description="Occasional email about new LANDED capabilities. No financial data." />
             </div>
             <div className="border-t border-black/[0.06] px-5 py-4">
-              <Button size="sm" variant="secondary" onClick={aggregate} loading={busy === "aggregate"}><RefreshCw className="h-3.5 w-3.5" /> Recompute community aggregates</Button>
+              <Button size="sm" variant="secondary" onClick={aggregate} loading={busy === "aggregate"}><RefreshCw className="h-3.5 w-3.5" /> Refresh community statistics</Button>
             </div>
           </Card>
 
@@ -615,7 +619,7 @@ export function LearningView({ metrics, memories, decisions, verification, commu
         </div>
       ) : null}
 
-      <div className="flex items-center justify-between rounded-2xl border border-black/[0.07] bg-black/[0.015] px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-black/[0.07] bg-black/[0.015] px-4 py-3">
         <p className="flex items-center gap-2 text-[10px] text-muted"><Sparkles className="h-3 w-3 text-lime" /> {metrics.counts.followed} followed · {metrics.counts.memoryInfluenced} influenced by memory</p>
         <Link href="/app/plan" className="text-[10.5px] text-lime">Make a new decision →</Link>
       </div>

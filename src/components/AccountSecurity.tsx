@@ -66,15 +66,15 @@ export function AccountSecurity({ email, isDemo }: { email: string; isDemo: bool
           <Field label="New password" hint="At least 8 characters. Every other device is signed out.">
             <input className={inputClass} type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} />
           </Field>
-          <Button size="sm" onClick={changePassword} loading={busy === "password"} disabled={!current || next.length < 8}>Change password</Button>
+          <Button size="sm" onClick={changePassword} loading={busy === "password"} disabled={busy !== null || !current || next.length < 8}>Change password</Button>
         </div>
 
         <div className="space-y-3 rounded-xl border border-red/20 bg-red/[0.03] p-4">
           <p className="text-[13px] text-red">Delete account</p>
           <p className="text-[11.5px] leading-relaxed text-muted">
             Permanently deletes your accounts, transactions, decisions, outcomes, lessons and sessions here. Export
-            your data first if you want a copy. Memories already written to Walrus stay there encrypted; no app can
-            delete a Walrus blob.
+            your data first if you want a copy. LANDED cannot delete encrypted records already written to Walrus;
+            they may remain available until their storage expires.
           </p>
           <Field label={`Type ${email} to confirm`}>
             <input className={inputClass} value={confirmEmail} onChange={(e) => setConfirmEmail(e.target.value)} autoComplete="off" />
@@ -87,7 +87,7 @@ export function AccountSecurity({ email, isDemo }: { email: string; isDemo: bool
             variant="danger"
             onClick={deleteAccount}
             loading={busy === "delete"}
-            disabled={confirmEmail.trim().toLowerCase() !== email.toLowerCase() || !deletePassword}
+            disabled={busy !== null || confirmEmail.trim().toLowerCase() !== email.toLowerCase() || !deletePassword}
           >
             <Trash2 className="h-3.5 w-3.5" /> Delete my account
           </Button>

@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { ArrowUp, Brain, Sparkles, X } from "lucide-react";
 import { post, errorMessage } from "@/lib/client";
 import { Badge, ErrorNote } from "@/components/ui";
+import { Modal } from "@/components/Modal";
 import { LogoMark } from "@/components/Logo";
 
 type AskCard = { label: string; value: string; detail?: string; tone?: "default" | "success" | "warning" };
@@ -29,6 +30,7 @@ const starters = [
 export function AskLanded() {
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState("");
+  const [submittedMessage, setSubmittedMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [response, setResponse] = useState<AskResponse | null>(null);
@@ -37,7 +39,9 @@ export function AskLanded() {
   async function ask(value: string) {
     const text = value.trim();
     if (!text || loading) return;
-    setMessage(text);
+    setMessage("");
+    setSubmittedMessage(text);
+    setResponse(null);
     setLoading(true);
     setError(null);
     try {
@@ -63,14 +67,14 @@ export function AskLanded() {
       </button>
 
       {open ? (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/55 backdrop-blur-sm" onMouseDown={(e) => { if (e.target === e.currentTarget) setOpen(false); }}>
+        <Modal label="Ask LANDED" onClose={() => setOpen(false)}>
           <aside className="flex h-full w-full max-w-md flex-col border-l border-black/10 bg-[#f1f1ee] shadow-2xl animate-rise">
             <div className="flex items-center justify-between border-b border-black/[0.07] px-5 py-4">
               <div className="flex items-center gap-2.5">
                 <LogoMark size={28} />
                 <div>
                   <p className="text-[13px] text-cream">Ask LANDED</p>
-                  <p className="text-[10px] text-muted">Deterministic answers · memory included</p>
+                  <p className="text-[10px] text-muted">Answers based on your records and lessons</p>
                 </div>
               </div>
               <button type="button" onClick={() => setOpen(false)} className="rounded-lg p-1.5 text-muted transition hover:bg-black/[0.05] hover:text-cream" aria-label="Close">
@@ -82,8 +86,8 @@ export function AskLanded() {
               {!response && !loading ? (
                 <>
                   <div className="rounded-xl border border-black/[0.07] bg-black/[0.02] p-4 text-[12px] leading-relaxed text-muted">
-                    I can explain safe-to-move, compare routes, and show what changed after a confirmed outcome. I use
-                    the same deterministic engine as the rest of LANDED — not freehand arithmetic.
+                    Ask how much you can move, compare payment routes, or review a past recommendation. Answers use
+                    your financial records and the lessons you have confirmed.
                   </div>
                   <p className="text-[10px] uppercase tracking-[0.14em] text-muted/70">Try one</p>
                   <div className="space-y-2">
@@ -96,8 +100,8 @@ export function AskLanded() {
                 </>
               ) : null}
 
-              {message ? (
-                <div className="ml-auto max-w-[85%] rounded-2xl rounded-br-sm bg-black/[0.06] px-3.5 py-2.5 text-[12px] text-cream">{message}</div>
+              {submittedMessage ? (
+                <div className="ml-auto max-w-[85%] rounded-2xl rounded-br-sm bg-black/[0.06] px-3.5 py-2.5 text-[12px] text-cream">{submittedMessage}</div>
               ) : null}
 
               {loading ? (
@@ -111,14 +115,14 @@ export function AskLanded() {
               {error ? <ErrorNote>{error}</ErrorNote> : null}
 
               {response && !loading ? (
-                <div className="space-y-3 animate-rise">
+                <div role="status" className="space-y-3 animate-rise">
                   <Badge tone={response.kind === "decision" ? "lime" : "muted"}>{response.kind}</Badge>
                   <p className="text-[12.5px] leading-6 text-cream/90">{response.message}</p>
                   {response.explanation ? (
                     <div className="rounded-xl border border-sky/20 bg-sky/[0.04] px-3 py-2.5">
                       <p className="text-[9.5px] uppercase tracking-[0.11em] text-sky/80">In plain words</p>
                       <p className="mt-1 text-[12px] leading-relaxed text-cream/85">{response.explanation.text}</p>
-                      <p className="mt-1.5 text-[9.5px] text-muted/70">Written by {response.explanation.model} from LANDED&apos;s computed facts. It cannot change a number.</p>
+                      <p className="mt-1.5 text-[9.5px] text-muted/70">AI-generated explanation of LANDED&apos;s calculations.</p>
                     </div>
                   ) : null}
                   {response.explanationNote ? <p className="text-[10px] leading-relaxed text-muted/70">{response.explanationNote}</p> : null}
@@ -164,20 +168,22 @@ export function AskLanded() {
               <div className="flex items-center gap-2 rounded-xl border border-black/[0.12] bg-[#f1f1ee] px-3 py-2 focus-within:border-lime/40">
                 <input
                   ref={inputRef}
+                  aria-label="Your question"
+                  disabled={loading}
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   placeholder="Ask about a move, a bill, or a lesson…"
-                  className="flex-1 bg-transparent text-[12.5px] text-cream outline-none placeholder:text-muted/50"
+                  className="min-w-0 flex-1 bg-transparent text-[12.5px] text-cream outline-none placeholder:text-muted/50"
                   maxLength={1000}
                 />
                 <button type="submit" disabled={!message.trim() || loading} className="flex h-7 w-7 items-center justify-center rounded-full bg-ink text-white disabled:opacity-30" aria-label="Send">
                   <ArrowUp className="h-3.5 w-3.5" />
                 </button>
               </div>
-              <p className="mt-2 text-center text-[9.5px] text-muted/50">Answers are computed from your records. Not financial advice.</p>
+              <p className="mt-2 text-center text-[9.5px] text-muted">Answers are computed from your records. Not financial advice.</p>
             </form>
           </aside>
-        </div>
+        </Modal>
       ) : null}
     </>
   );

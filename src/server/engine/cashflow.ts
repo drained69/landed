@@ -1,8 +1,8 @@
-import { addDays, addMonths, differenceInCalendarDays, isAfter } from "date-fns";
+import { addDays, addMonths, differenceInCalendarDays, isAfter, startOfDay } from "date-fns";
 import type {
   Assumption, PredictedOutcome, ValidatedMemory,
 } from "@/lib/types";
-import { roundMinorTo } from "@/lib/money";
+import { formatMinor, roundMinorTo } from "@/lib/money";
 import { nextDueDate } from "@/lib/dates";
 
 export interface CashFlowAccount {
@@ -136,7 +136,7 @@ export function applyMemoryRules(input: CashFlowInput): {
   const effects: { code: string; label: string; detail: string; memoryId: string }[] = [];
 
   for (const memory of input.memories ?? []) {
-    if (!memory.rule || memory.excluded || memory.supersededBy) continue;
+    if (!memory.rule || memory.excluded || memory.supersededBy || !["verified", "user_confirmed"].includes(memory.verificationStatus)) continue;
     const rule = memory.rule;
     const weight = Math.max(0, Math.min(1, memory.confidence));
     switch (rule.kind) {
@@ -147,7 +147,7 @@ export function applyMemoryRules(input: CashFlowInput): {
           applied.push(memory);
           effects.push({
             code: rule.kind,
-            label: `Buffer floor raised to ${(proposed / 100).toFixed(0)} USD`,
+            label: `Buffer floor raised to ${formatMinor(proposed, input.currency)}`,
             detail: memory.summary,
             memoryId: memory.id,
           });
@@ -169,7 +169,7 @@ export function applyMemoryRules(input: CashFlowInput): {
       }
       case "RESERVE_COMMITMENT": {
         const match = input.commitments.find((c) =>
-          c.name.toLowerCase().includes(rule.match.toLowerCase()) &&
+          c.status === "upcoming" && c.currency === input.currency && c.name.toLowerCase().includes(rule.match.toLowerCase()) &&
           differenceInCalendarDays(c.dueDate, input.asOf) <= rule.daysBefore &&
           differenceInCalendarDays(c.dueDate, input.asOf) >= 0,
         );
@@ -223,7 +223,7 @@ function buildTimeline(input: CashFlowInput, includeIncome: boolean): TimelineEv
   for (const c of input.commitments) {
     if (c.status !== "upcoming" || c.currency !== input.currency) continue;
     if (c.priority === "discretionary") continue;
-    let due = nextDueDate(c.dueDate, c.recurrence, input.asOf);
+    let due = nextDueDate(c.dueDate, c.recurrence, startOfDay(input.asOf));
     while (!isAfter(due, horizon)) {
       events.push({
         date: due,
@@ -303,11 +303,11 @@ function simulate(
   let minBalance = balance;
   let minDate: Date | null = null;
   let shortfallDate: Date | null = null;
-  const obligationBalances = new Map<string, number>();
+  const obligations: CoveredObligation[] = [];
 
   for (const event of events) {
     if (event.kind === "commitment" && event.obligationId) {
-      obligationBalances.set(event.obligationId, balance);
+      obligations.push({ name: event.label, amountMinor: -event.amountMinor, dueDate: event.date.toISOString(), covered: balance + event.amountMinor >= 0, projectedBalanceBefore: balance });
     }
     balance += event.amountMinor;
     if (event.kind !== "income" && balance < minBalance) {
@@ -317,7 +317,7 @@ function simulate(
     if (balance < 0 && !shortfallDate) shortfallDate = event.date;
   }
 
-  return { events, minBalance, minDate, shortfallDate, obligationBalances, endBalance: balance };
+  return { events, minBalance, minDate, shortfallDate, obligations, endBalance: balance };
 }
 
 export function computeCashFlow(input: CashFlowInput): CashFlowResult {
@@ -331,17 +331,6 @@ export function computeCashFlow(input: CashFlowInput): CashFlowResult {
 
   const memoryPlan = applyMemoryRules(input);
   const effectiveBuffer = memoryPlan.bufferMinor;
-  const expectedIncomeExcludedMinor = input.expectedIncome
-    .filter((i) => i.currency === input.currency && !memoryPlan.includeIncome)
-    .reduce((sum, i) => sum + i.amountMinor, 0);
-  const expectedIncomeIncludedMinor = input.expectedIncome
-    .filter((i) => i.currency === input.currency && memoryPlan.includeIncome)
-    .reduce((sum, i) => sum + Math.round(i.amountMinor * i.reliability * 0.8), 0);
-
-  const savingsMonthly = input.savingsGoals
-    .filter((g) => g.currency === input.currency)
-    .reduce((sum, g) => sum + g.monthlyContributionMinor, 0);
-
   const baseSim = simulate(input, false, clearedLiquidMinor);
   const fullSim = simulate(input, memoryPlan.includeIncome, clearedLiquidMinor);
 
@@ -350,29 +339,18 @@ export function computeCashFlow(input: CashFlowInput): CashFlowResult {
   const cappedSafe = memoryPlan.capPercent === null ? rawSafe : Math.min(rawSafe, Math.round(rawSafe * memoryPlan.capPercent));
   const safeToMoveMinor = roundMinorTo(Math.max(0, cappedSafe), 5, input.currency);
 
-  const essentialCommitmentsMinor = input.commitments
-    .filter((c) => c.currency === input.currency && c.status === "upcoming" && c.priority !== "discretionary")
-    .reduce((sum, c) => sum + c.amountMinor, 0);
-
-  const obligations: CoveredObligation[] = [];
-  for (const c of input.commitments) {
-    if (c.currency !== input.currency || c.status !== "upcoming" || c.priority === "discretionary") continue;
-    const due = nextDueDate(c.dueDate, c.recurrence, input.asOf);
-    if (isAfter(due, addDays(input.asOf, HORIZON_DAYS + 15))) continue;
-    const balanceBefore = fullSim.obligationBalances.get(c.id);
-    obligations.push({
-      name: c.name,
-      amountMinor: c.amountMinor,
-      dueDate: due.toISOString(),
-      covered: balanceBefore === undefined ? true : balanceBefore - c.amountMinor >= 0,
-      projectedBalanceBefore: balanceBefore ?? 0,
-    });
-  }
+  const essentialCommitmentsMinor = fullSim.events.filter((e) => e.kind === "commitment").reduce((sum, e) => sum - e.amountMinor, 0);
+  const savingsMonthly = fullSim.events.filter((e) => e.kind === "savings").reduce((sum, e) => sum - e.amountMinor, 0);
+  const expectedIncomeIncludedMinor = fullSim.events.filter((e) => e.kind === "income").reduce((sum, e) => sum + e.amountMinor, 0);
+  const expectedIncomeExcludedMinor = input.expectedIncome
+    .filter((i) => i.currency === input.currency && !memoryPlan.includeIncome && i.expectedDate >= input.asOf && i.expectedDate <= addDays(input.asOf, HORIZON_DAYS))
+    .reduce((sum, i) => sum + i.amountMinor, 0);
+  const obligations = fullSim.obligations;
 
   const assumptions: Assumption[] = [
     {
       key: "buffer",
-      label: `Safety buffer ${(effectiveBuffer / 100).toFixed(0)} ${input.currency}`,
+      label: `Safety buffer ${formatMinor(effectiveBuffer, input.currency)}`,
       detail: "Protected from every recommendation. Set in Settings.",
       source: "user",
     },
@@ -387,7 +365,7 @@ export function computeCashFlow(input: CashFlowInput): CashFlowResult {
     {
       key: "variable",
       label: `${VARIABLE_SPEND_DAYS} days of variable spending reserved`,
-      detail: `Based on a ${(input.dailyVariableSpendMinor / 100).toFixed(2)} ${input.currency}/day trailing median from recorded transactions.`,
+      detail: `Based on average recorded spending of ${formatMinor(input.dailyVariableSpendMinor, input.currency)} per day over the observation window.`,
       source: "database",
     },
     {
@@ -465,19 +443,8 @@ export function evaluateTransfer(
     label: "Proposed transfer",
   });
   const base = computeCashFlow(input);
-  const bufferAfter = sim.minBalance - memoryPlan.bufferMinor;
-  const obligations: CoveredObligation[] = input.commitments
-    .filter((c) => c.currency === input.currency && c.status === "upcoming" && c.priority !== "discretionary")
-    .map((c) => {
-      const before = sim.obligationBalances.get(c.id);
-      return {
-        name: c.name,
-        amountMinor: c.amountMinor,
-        dueDate: nextDueDate(c.dueDate, c.recurrence, input.asOf).toISOString(),
-        covered: before === undefined ? true : before - c.amountMinor >= 0,
-        projectedBalanceBefore: before ?? 0,
-      };
-    });
+  const bufferAfter = sim.minBalance - memoryPlan.bufferMinor - memoryPlan.reserveExtraMinor;
+  const obligations = sim.obligations;
 
   return {
     amountMinor,

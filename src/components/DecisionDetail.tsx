@@ -7,9 +7,9 @@ import {
   ArrowLeft, ArrowRight, Brain, Check, ChevronDown, CircleAlert, Clock, Database,
   ExternalLink, GitCompareArrows, RefreshCw, ShieldCheck, TriangleAlert, X,
 } from "lucide-react";
-import { getDecision } from "@/server/services/decisions";
-import { formatMinor } from "@/lib/money";
-import { errorMessage, post } from "@/lib/client";
+import type { getDecision } from "@/server/services/decisions";
+import { decimalsFor, formatMinor } from "@/lib/money";
+import { errorMessage, minorToMajorString, post } from "@/lib/client";
 import { Badge, Button, Card, CardHeader, ErrorNote, Field, inputClass, Toggle } from "@/components/ui";
 
 type Decision = NonNullable<Awaited<ReturnType<typeof getDecision>>>;
@@ -63,7 +63,7 @@ export function DecisionDetail({ decision }: { decision: Decision }) {
   const errors = outcome ? parseJson<Record<string, number | null>>(outcome.predictionError, {}) : null;
   const refs = decision.memoryReferences as { memoryId: string; blobId: string | null; code: string; label: string }[];
 
-  const [amountSent, setAmountSent] = useState(recommended ? (recommended.amountMinor / 100).toFixed(2) : "");
+  const [amountSent, setAmountSent] = useState(recommended ? minorToMajorString(recommended.amountMinor, decimalsFor(decision.currency)) : "");
   const [fee, setFee] = useState("");
   const [received, setReceived] = useState("");
   const [deliveryHours, setDeliveryHours] = useState("");
@@ -120,18 +120,10 @@ export function DecisionDetail({ decision }: { decision: Decision }) {
     }
   }
 
-  /** Only values in the decision's own currency are filled; SUI gas is never converted. */
+  /** Settlement is evidence, not proof of the recipient's payout or delivery time. */
   function applyChain(evidence: ChainEvidence) {
-    const sameCurrency = evidence.balanceChanges.filter((c) => c.symbol === decision.currency && c.amountMinor !== null);
-    const sent = sameCurrency.find((c) => c.direction === "out");
-    const got = sameCurrency.find((c) => c.direction === "in");
-    if (sent) setAmountSent((sent.amountMinor! / 100).toFixed(2));
-    if (got) setReceived((got.amountMinor! / 100).toFixed(2));
-    if (sent && got) setFee(((sent.amountMinor! - got.amountMinor!) / 100).toFixed(2));
-    const start = decision.followedAt ?? decision.createdAt;
-    const hours = (new Date(evidence.timestamp).getTime() - new Date(start).getTime()) / 3_600_000;
-    if (hours >= 0) setDeliveryHours(String(Math.round(hours * 10) / 10));
-    setNotes((prev) => prev || `Settled onchain via Tatum (${evidence.digest.slice(0, 10)}…). Gas ${evidence.gasFeeSui} SUI.`);
+    setNotes((prev) => prev || `Onchain settlement recorded via Tatum (${evidence.digest.slice(0, 10)}…). Gas ${evidence.gasFeeSui} SUI. Recipient payout, fees, and delivery time require separate confirmation.`);
+    setNotice("Transaction evidence attached. Enter the actual amounts, fees, and delivery time from your payment records.");
   }
 
   async function loadReplay() {
@@ -220,7 +212,7 @@ export function DecisionDetail({ decision }: { decision: Decision }) {
             <div className="mt-5 grid grid-cols-2 gap-3 border-t border-black/[0.07] pt-4 sm:grid-cols-4">
               <div><p className="text-[9px] uppercase tracking-[0.1em] text-muted">No-memory baseline</p><p className="mt-1 text-[13.5px] tabular-nums text-muted">{baseline ? formatMinor(baseline.amountMinor, baseline.currency) : "—"}</p></div>
               <div><p className="text-[9px] uppercase tracking-[0.1em] text-muted">Predicted buffer</p><p className="mt-1 text-[13.5px] tabular-nums text-cream">{predicted ? formatMinor(predicted.projectedBufferAfterMinor, decision.currency) : "—"}</p></div>
-              <div><p className="text-[9px] uppercase tracking-[0.1em] text-muted">Shortfall risk</p><p className="mt-1 text-[13.5px] tabular-nums text-cream">{predicted ? `${Math.round(predicted.shortfallRisk * 100)}%` : "—"}</p></div>
+              <div><p className="text-[9px] uppercase tracking-[0.1em] text-muted">Shortfall estimate</p><p className="mt-1 text-[13.5px] text-cream">{!predicted ? "—" : predicted.shortfallRisk >= 1 ? "Projected shortfall" : predicted.shortfallRisk >= 0.7 ? "Buffer at risk" : "No shortfall projected"}</p></div>
               <div><p className="text-[9px] uppercase tracking-[0.1em] text-muted">Confidence</p><p className="mt-1 text-[13.5px] tabular-nums text-cream">{Math.round(decision.confidence * 100)}%</p></div>
             </div>
 
@@ -233,10 +225,10 @@ export function DecisionDetail({ decision }: { decision: Decision }) {
                   <Button size="sm" variant="secondary" onClick={() => setShowOutcome((v) => !v)}><Clock className="h-3.5 w-3.5" /> Record real outcome</Button>
                 </>
               ) : (
-                <div className="flex items-center gap-2 text-[11px] text-lime"><Check className="h-3.5 w-3.5" /> Outcome settled and audited</div>
+                <div className="flex items-center gap-2 text-[11px] text-lime"><Check className="h-3.5 w-3.5" /> Outcome recorded and evaluated</div>
               )}
             </div>
-            {notice ? <p className="mt-3 rounded-lg bg-lime/[0.06] px-3 py-2 text-[10.5px] leading-relaxed text-lime">{notice}</p> : null}
+            {notice ? <p role="status" className="mt-3 rounded-lg bg-lime/[0.06] px-3 py-2 text-[10.5px] leading-relaxed text-lime">{notice}</p> : null}
             {error ? <ErrorNote className="mt-3">{error}</ErrorNote> : null}
           </div>
         </Card>
@@ -298,8 +290,8 @@ export function DecisionDetail({ decision }: { decision: Decision }) {
                     ))}
                   </ul>
                   <div className="flex flex-wrap items-center gap-2">
-                    {chain.status === "success" ? <Button size="sm" onClick={() => applyChain(chain)}><Check className="h-3 w-3" /> Use these facts</Button> : null}
-                    <span className="text-[10px] text-muted/80">{chain.note} Only {decision.currency}-denominated changes are filled.</span>
+                    {chain.status === "success" ? <Button size="sm" onClick={() => applyChain(chain)}><Check className="h-3 w-3" /> Attach settlement note</Button> : null}
+                    <span className="text-[10px] text-muted/80">{chain.note} Confirm payment amounts and delivery separately.</span>
                   </div>
                 </div>
               ) : null}
@@ -309,7 +301,7 @@ export function DecisionDetail({ decision }: { decision: Decision }) {
               <Toggle checked={shortfall} onChange={setShortfall} label="Shortfall occurred" />
             </div>
             <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-4">
-              <Button onClick={recordOutcome} loading={saving}>Save confirmed outcome</Button>
+              <Button onClick={recordOutcome} loading={saving}>Save outcome</Button>
               <Button variant="ghost" onClick={() => setShowOutcome(false)}>Cancel</Button>
             </div>
           </div>
@@ -319,7 +311,7 @@ export function DecisionDetail({ decision }: { decision: Decision }) {
       {outcome ? (
         <Card>
           <CardHeader
-            title="Advice Autopsy"
+            title="Outcome review"
             subtitle="Predicted versus observed. Absolute errors are shown only where both values exist."
             right={<Badge tone={outcome.objectiveAchieved ? "lime" : "amber"}>{outcome.objectiveAchieved ? "objective achieved" : "objective missed"}</Badge>}
           />
@@ -370,11 +362,11 @@ export function DecisionDetail({ decision }: { decision: Decision }) {
 
       <div className="flex flex-wrap items-center gap-2 border-b border-black/[0.07] pb-px">
         {([
-          ["autopsy", "Autopsy"],
+          ["autopsy", "Review"],
           ["replay", "Learning replay"],
-          ["memories", `Draft lessons (${decision.memories.length})`],
+          ["memories", `Lessons (${decision.memories.length})`],
         ] as const).map(([key, label]) => (
-          <button key={key} onClick={() => setTab(key)} className={`border-b-2 px-3 py-2.5 text-[11.5px] transition ${tab === key ? "border-lime text-cream" : "border-transparent text-muted hover:text-cream"}`}>
+          <button key={key} aria-pressed={tab === key} onClick={() => setTab(key)} className={`border-b-2 px-3 py-2.5 text-[11.5px] transition ${tab === key ? "border-lime text-cream" : "border-transparent text-muted hover:text-cream"}`}>
             {label}
           </button>
         ))}
@@ -383,7 +375,7 @@ export function DecisionDetail({ decision }: { decision: Decision }) {
       {tab === "autopsy" ? (
         <div className="grid gap-4 lg:grid-cols-2">
           <Card>
-            <CardHeader title="Counterfactual" subtitle="The baseline uses the identical input snapshot with memory removed." right={<GitCompareArrows className="h-4 w-4 text-muted" />} />
+            <CardHeader title="How memory changed the recommendation" subtitle="Both results use the same financial information. The comparison shows the effect of confirmed lessons." right={<GitCompareArrows className="h-4 w-4 text-muted" />} />
             <div className="grid gap-px border-t border-black/[0.06] bg-black/[0.06] sm:grid-cols-2">
               <div className="bg-white p-4">
                 <p className="text-[9px] uppercase tracking-[0.1em] text-muted">Without memory</p>
@@ -415,7 +407,7 @@ export function DecisionDetail({ decision }: { decision: Decision }) {
           </Card>
 
           <Card>
-            <CardHeader title="Assumptions at decision time" subtitle="Preserved verbatim in the audit record." right={<ChevronDown className="h-4 w-4 text-muted" />} />
+            <CardHeader title="Assumptions at decision time" subtitle="The information and assumptions used for this recommendation." right={<ChevronDown className="h-4 w-4 text-muted" />} />
             <div className="space-y-3 border-t border-black/[0.06] px-5 py-4">
               {decision.assumptions.map((assumption) => (
                 <div key={assumption.key} className="flex gap-2.5">
@@ -440,22 +432,22 @@ export function DecisionDetail({ decision }: { decision: Decision }) {
           />
           <div className="flex flex-wrap items-end gap-3 border-t border-black/[0.06] px-5 py-4">
             <Field label="Memory cutoff" hint="Memories created after this date are excluded." className="w-48">
-              <input className={inputClass} type="date" value={cutoff} onChange={(e) => setCutoff(e.target.value)} />
+              <input className={inputClass} type="date" max={new Date(decision.createdAt).toISOString().slice(0, 10)} value={cutoff} onChange={(e) => setCutoff(e.target.value)} />
             </Field>
-            <Button onClick={loadReplay} loading={replayLoading}><RefreshCw className="h-3.5 w-3.5" /> Replay</Button>
+            <Button onClick={loadReplay} loading={replayLoading} disabled={!cutoff}><RefreshCw className="h-3.5 w-3.5" /> Replay</Button>
             <p className="pb-1 text-[10px] text-muted">Original cutoff: {new Date(decision.createdAt).toISOString().slice(0, 10)}</p>
           </div>
           {replay ? (
             <div className="animate-rise border-t border-black/[0.06]">
               <div className="grid gap-px bg-black/[0.06] sm:grid-cols-2">
                 <div className="bg-white p-5">
-                  <p className="text-[9px] uppercase tracking-[0.11em] text-muted">Baseline arm · no memory</p>
+                  <p className="text-[9px] uppercase tracking-[0.11em] text-muted">Without memory</p>
                   <p className="mt-2 text-[26px] tabular-nums text-muted">{formatMinor(replay.baseline.action.amountMinor, decision.currency)}</p>
                   <p className="mt-1 text-[10.5px] leading-relaxed text-muted">{replay.baseline.action.headline}</p>
                   <p className="mt-2 text-[9.5px] text-muted/60">Safe to move {formatMinor(replay.baseline.cashflow.safeToMoveMinor, decision.currency)} · confidence {Math.round(replay.baseline.cashflow.confidence * 100)}%</p>
                 </div>
                 <div className="bg-lime/[0.03] p-5">
-                  <p className="text-[9px] uppercase tracking-[0.11em] text-lime">Informed arm · cutoff memory</p>
+                  <p className="text-[9px] uppercase tracking-[0.11em] text-lime">With eligible lessons</p>
                   <p className="mt-2 text-[26px] tabular-nums text-lime">{formatMinor(replay.informed.action.amountMinor, decision.currency)}</p>
                   <p className="mt-1 text-[10.5px] leading-relaxed text-cream/75">{replay.informed.action.headline}</p>
                   <p className="mt-2 text-[9.5px] text-muted/70">Safe to move {formatMinor(replay.informed.cashflow.safeToMoveMinor, decision.currency)} · confidence {Math.round(replay.informed.cashflow.confidence * 100)}%</p>
@@ -513,7 +505,7 @@ export function DecisionDetail({ decision }: { decision: Decision }) {
                     {memory.walrusBlobId ? (
                       <span className="truncate font-mono text-[8.5px] text-lime/60">blob {memory.walrusBlobId}</span>
                     ) : (
-                      <span className="text-[8.5px] text-amber/60">No Walrus blob ID — local rehearsal</span>
+                      <span className="text-[8.5px] text-amber/60">Saved in LANDED; Walrus storage not confirmed</span>
                     )}
                   </div>
                   {memory.writeError ? <p className="mt-1.5 text-[9.5px] leading-relaxed text-amber/70">{memory.writeError}</p> : null}
@@ -525,7 +517,7 @@ export function DecisionDetail({ decision }: { decision: Decision }) {
                       </>
                     ) : null}
                     {memory.writeStatus !== "confirmed" && memory.verificationStatus !== "hypothesis" && memory.verificationStatus !== "rejected" ? (
-                      <Button size="sm" variant="outline" onClick={() => writeMemory(memory.id)} disabled={saving}><Database className="h-3 w-3" /> Attempt Walrus write</Button>
+                      <Button size="sm" variant="outline" onClick={() => writeMemory(memory.id)} disabled={saving}><Database className="h-3 w-3" /> Save to Walrus</Button>
                     ) : null}
                     {memory.writeStatus === "confirmed" && memory.walrusBlobId ? (
                       <a href={`https://walruscan.com/blob/${memory.walrusBlobId}`} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-full border border-lime/25 px-3 text-[11px] text-lime transition hover:bg-lime/[0.08]">
@@ -540,7 +532,7 @@ export function DecisionDetail({ decision }: { decision: Decision }) {
         </Card>
       ) : null}
 
-      <div className="flex items-center justify-between rounded-2xl border border-black/[0.07] bg-black/[0.015] px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-black/[0.07] bg-black/[0.015] px-4 py-3">
         <p className="flex items-center gap-2 text-[10px] text-muted"><ShieldCheck className="h-3 w-3" /> Inputs are stored verbatim. Outcomes cannot be overwritten once evaluated.</p>
         <Link href="/app/plan" className="text-[10.5px] text-lime">Plan another move →</Link>
       </div>

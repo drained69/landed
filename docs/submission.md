@@ -17,7 +17,7 @@ Track: **Consumer Finance Apps** (Tatum × Walrus Total Recall, submissions clos
 
 | Pillar | What a judge will see |
 | --- | --- |
-| **Apps that remember** — "scores, preferences, and reasoning across sessions… sharper every week" | *Preferences*: typed rules and Spend Watch limits. *Scores*: each lesson's track record (held / contradicted, confidence before → after). *Reasoning*: the decision journal. *Sharper every week*: the learning curve on Overview and Memory. *Across sessions*: email-derived namespace + **Restore from Walrus**. |
+| **Apps that remember** — "scores, preferences, and reasoning across sessions… sharper every week" | *Preferences*: typed rules and Spend Watch limits. *Scores*: each lesson's track record (held / contradicted, confidence before → after). *Reasoning*: the decision journal. *Sharper every week*: the learning curve on Overview and Memory. *Across sessions*: account-ID-derived namespace + **Restore from Walrus**. |
 | **Real stack** — "Memory on Mainnet. Tatum Sui RPC and Data APIs" | Walrus `rememberAndWait` / `recall` / `restore` / `listMemories`; Tatum's Sui GraphQL gateway for balances, history and settlement evidence; Tatum Data API for sourced exchange rates. |
 | **Web2 welcome** | Dollars-first app; no wallet needed; chain details only appear as proof. Landing page leads with everyday benefits. |
 | **Tatum AI Builder** (optional) | Not used — see row 6 above. |
@@ -26,7 +26,7 @@ Track: **Consumer Finance Apps** (Tatum × Walrus Total Recall, submissions clos
 
 | Weight | Criterion | Strongest evidence |
 | --- | --- | --- |
-| 30% | Walrus and Tatum integration | Append-only lesson updates on Walrus with newest-wins restore; Spend Watch rules recalled from Walrus with visible coverage; memory changes advice ($300 → $150 now / $150 later; Spend Watch alerts exist only because of memory); Restore from Walrus; relayer inventory check; Tatum RPC settlement verification re-checked server-side; Tatum Data API rates |
+| 30% | Walrus and Tatum integration | Append-only lesson updates on Walrus with newest-wins restore; Spend Watch rules recalled from Walrus with visible coverage; memory can change advice (compare the current recommendation with its no-memory baseline; Spend Watch alerts exist only because of memory); Restore from Walrus; relayer inventory check; Tatum RPC settlement verification re-checked server-side; Tatum Data API rates |
 | 30% | Technical quality | Integer money end to end (BigInt rate conversion); 82 tests including Walrus flows against the SDK's MemWalMock; deterministic engines; per-user authorization tested against a real database; no fabricated confirmations |
 | 20% | Creativity | Memory that keeps a track record and loses confidence when wrong; alerts only from rules you chose; a journal you can ask about |
 | 20% | Presentation | [Demo script](demo-script.md), [blog](blog.md), README requirement map, honest status labels in the UI |
@@ -40,7 +40,7 @@ Track: **Consumer Finance Apps** (Tatum × Walrus Total Recall, submissions clos
    pnpm walrus:backfill --include-synthetic
    pnpm walrus:verify
    ```
-4. In the app, open **Memory → Walrus verification**: lessons and journal entries on Walrus should match the ledger. Optional proof of portability: point a fresh database at the same credentials, sign in with the same email, click **Restore from Walrus**.
+4. In the app, open **Memory → Walrus verification**: lessons and journal entries on Walrus should match the ledger. For portability, sign in to the same account on another device and click **Restore from Walrus**. A newly created account cannot recover a previous account’s memory using an unverified email. Previous email-derived blobs must be republished from owned local records before they appear in the current inventory.
 5. Settings → Integrations: Tatum RPC reachable, Data API shows a live SUI/USD rate.
 6. Deploy, record the demo following [demo-script.md](demo-script.md), publish the blog, push the repo.
 7. Bonus points: post on X or LinkedIn tagging @Tatum_io and @WalrusFoundation.

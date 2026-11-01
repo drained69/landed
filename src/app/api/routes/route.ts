@@ -1,13 +1,14 @@
+import { currencySchema } from "@/server/validation";
 import { z } from "zod";
 import { prisma } from "@/server/db";
 import { api, parseBody } from "@/server/api";
 import { requireApiUser } from "@/server/auth";
 
 const routeSchema = z.object({
-  name: z.string().min(1).max(80),
-  providerOrMethod: z.string().min(1).max(80),
-  originCurrency: z.string().length(3),
-  destinationCurrency: z.string().length(3),
+  name: z.string().trim().min(1).max(80),
+  providerOrMethod: z.string().trim().min(1).max(80),
+  originCurrency: currencySchema,
+  destinationCurrency: currencySchema,
   payoutMethod: z.enum(["bank_deposit", "wallet", "cash_pickup", "mobile_money", "instant"]),
   routeType: z.enum(["onchain", "bank", "remittance", "mobile_money", "cash"]),
   description: z.string().max(300).optional().nullable(),

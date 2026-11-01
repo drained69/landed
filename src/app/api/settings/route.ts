@@ -1,12 +1,13 @@
+import { currencySchema } from "@/server/validation";
 import { z } from "zod";
 import { api, parseBody } from "@/server/api";
 import { requireApiUser } from "@/server/auth";
 import { prisma } from "@/server/db";
-import { parseAmountToMinor } from "@/lib/money";
+import { parseApiAmount } from "@/server/validation";
 
 const schema = z.object({
-  name: z.string().min(1).max(80).optional(),
-  currency: z.string().length(3).optional(),
+  name: z.string().trim().min(1).max(80).optional(),
+  currency: currencySchema.optional(),
   safetyBuffer: z.union([z.string(), z.number()]).optional(),
   riskPosture: z.enum(["cautious", "balanced", "flexible"]).optional(),
   mainObjective: z.string().max(200).optional().nullable(),
@@ -17,7 +18,7 @@ export const PATCH = api(async (req) => {
   const body = await parseBody(req, schema);
   const currency = body.currency ?? user.preferredCurrency;
   const safetyBufferMinor = body.safetyBuffer !== undefined
-    ? parseAmountToMinor(body.safetyBuffer, currency)
+    ? parseApiAmount(body.safetyBuffer, currency)
     : undefined;
   const updated = await prisma.user.update({
     where: { id: user.id },

@@ -6,8 +6,10 @@ import { useState } from "react";
 import {
   ArrowLeftRight, Brain, CircleDollarSign, LayoutGrid, LogOut, Menu, Receipt, Settings, X,
 } from "lucide-react";
-import { cn, post } from "@/lib/client";
+import { cn, post, errorMessage } from "@/lib/client";
 import { AskLanded } from "@/components/AskLanded";
+import { Modal } from "@/components/Modal";
+import { ErrorNote } from "@/components/ui";
 import { Logo } from "@/components/Logo";
 
 const nav = [
@@ -21,10 +23,10 @@ const nav = [
 
 const titles: Record<string, { title: string; eyebrow: string }> = {
   "/app": { title: "Overview", eyebrow: "Today" },
-  "/app/plan": { title: "Plan a move", eyebrow: "Decision engine" },
+  "/app/plan": { title: "Plan a move", eyebrow: "Your next step" },
   "/app/spending": { title: "Spend Watch", eyebrow: "Learned limits" },
   "/app/activity": { title: "Activity", eyebrow: "Outcomes" },
-  "/app/learning": { title: "Memory", eyebrow: "Learning ledger" },
+  "/app/learning": { title: "Memory", eyebrow: "Your confirmed lessons" },
   "/app/settings": { title: "Settings", eyebrow: "Your controls" },
 };
 
@@ -32,24 +34,29 @@ export function AppShell({ user, children }: { user: { name: string; email: stri
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
 
   const rootKey = pathname.startsWith("/app/decisions") ? "/app/activity" : pathname;
   const header = titles[rootKey] ?? { title: "LANDED", eyebrow: "Workspace" };
   const initial = user.name.trim().charAt(0).toUpperCase() || "L";
 
-  async function signOut() {
+  async function signOut(destination = "/") {
     setSigningOut(true);
+    setSignOutError(null);
     try {
       await post("/api/auth/logout");
-    } finally {
-      router.push("/");
+      router.push(destination);
       router.refresh();
+    } catch (error) {
+      setSignOutError(errorMessage(error));
+    } finally {
+      setSigningOut(false);
     }
   }
 
   const navItems = (
-    <nav className="space-y-1">
+    <nav aria-label="Main navigation" className="space-y-1">
       {nav.map((item) => {
         const active = item.href === "/app" ? pathname === "/app" : pathname.startsWith(item.href);
         const Icon = item.icon;
@@ -57,6 +64,7 @@ export function AppShell({ user, children }: { user: { name: string; email: stri
           <Link
             key={item.href}
             href={item.href}
+            aria-current={active ? "page" : undefined}
             onClick={() => setMobileOpen(false)}
             className={cn(
               "group flex items-center gap-3 rounded-full px-3.5 py-2.5 text-[13px] transition",
@@ -74,6 +82,7 @@ export function AppShell({ user, children }: { user: { name: string; email: stri
 
   return (
     <div className="min-h-dvh">
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-white focus:p-3">Skip to content</a>
       <div className="sky pointer-events-none fixed inset-x-0 top-0 h-[340px] opacity-[0.35] [mask-image:linear-gradient(to_bottom,black,transparent)]" />
 
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-[238px] flex-col border-r border-black/[0.06] bg-white/85 px-3.5 py-5 backdrop-blur-xl lg:flex">
@@ -93,7 +102,7 @@ export function AppShell({ user, children }: { user: { name: string; email: stri
             <p className="text-[10px] text-muted">{user.email}</p>
             {user.isDemo ? <p className="mt-2 text-[9.5px] leading-relaxed text-muted/70">Balances and outcomes are synthetic and labelled.</p> : null}
           </div>
-          <button type="button" onClick={signOut} disabled={signingOut} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-[11.5px] text-muted transition hover:bg-black/[0.04] hover:text-cream">
+          <button type="button" onClick={() => signOut()} disabled={signingOut} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-[11.5px] text-muted transition hover:bg-black/[0.04] hover:text-cream">
             <LogOut className="h-3.5 w-3.5" /> {signingOut ? "Signing out…" : "Sign out"}
           </button>
         </div>
@@ -102,7 +111,7 @@ export function AppShell({ user, children }: { user: { name: string; email: stri
       <div className="relative lg:pl-[238px]">
         <header className="sticky top-0 z-20 border-b border-black/[0.06] bg-[#f6f6f4]/75 backdrop-blur-xl">
           <div className="mx-auto flex h-14 w-full max-w-[1200px] items-center gap-3 px-4 sm:px-6 lg:px-8">
-            <button type="button" onClick={() => setMobileOpen(true)} className="rounded-lg p-2 text-muted hover:bg-black/[0.05] hover:text-cream lg:hidden" aria-label="Open navigation">
+            <button type="button" onClick={() => setMobileOpen(true)} className="rounded-lg p-2 text-muted hover:bg-black/[0.05] hover:text-cream lg:hidden" aria-label="Open navigation" aria-expanded={mobileOpen}>
               <Menu className="h-4.5 w-4.5" />
             </button>
             <div className="min-w-0">
@@ -116,16 +125,24 @@ export function AppShell({ user, children }: { user: { name: string; email: stri
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-[1200px] px-4 pb-24 pt-6 sm:px-6 lg:px-8 lg:pb-14">{children}</main>
+        <main id="main-content" tabIndex={-1} className="mx-auto w-full max-w-[1200px] px-4 pb-24 pt-6 sm:px-6 lg:px-8 lg:pb-14">
+          {user.isDemo ? (
+            <div role="note" className="mb-5 rounded-xl border border-amber/30 bg-amber/10 px-4 py-3 text-[12px] leading-relaxed text-cream">
+              This demo account is shared. Other visitors can see changes you make. Use fictional information only, or <button type="button" onClick={() => signOut("/login?mode=signup")} disabled={signingOut} className="font-medium underline underline-offset-2">create your own account</button> for personal data.
+            </div>
+          ) : null}
+          {signOutError ? <ErrorNote className="mb-4">Could not sign out. {signOutError}</ErrorNote> : null}
+          {children}
+        </main>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-black/[0.06] bg-white/95 px-2 pb-[max(8px,env(safe-area-inset-bottom))] pt-1.5 backdrop-blur-xl lg:hidden">
+      <nav aria-label="Mobile navigation" className="fixed inset-x-0 bottom-0 z-30 border-t border-black/[0.06] bg-white/95 px-2 pb-[max(8px,env(safe-area-inset-bottom))] pt-1.5 backdrop-blur-xl lg:hidden">
         <div className="flex items-center justify-around">
           {nav.map((item) => {
             const active = item.href === "/app" ? pathname === "/app" : pathname.startsWith(item.href);
             const Icon = item.icon;
             return (
-              <Link key={item.href} href={item.href} className={cn("flex min-w-14 flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-[9px]", active ? "font-medium text-cream" : "text-muted")}>
+              <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={cn("flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-[9px]", active ? "font-medium text-cream" : "text-muted")}>
                 <Icon className="h-4 w-4" />
                 {item.label === "Plan a move" ? "Plan" : item.label === "Learning" ? "Memory" : item.label}
               </Link>
@@ -135,7 +152,7 @@ export function AppShell({ user, children }: { user: { name: string; email: stri
       </nav>
 
       {mobileOpen ? (
-        <div className="fixed inset-0 z-50 bg-black/25 backdrop-blur-sm lg:hidden" onMouseDown={(e) => { if (e.target === e.currentTarget) setMobileOpen(false); }}>
+        <Modal label="Navigation" align="left" onClose={() => setMobileOpen(false)}>
           <aside className="flex h-full w-[270px] flex-col border-r border-black/[0.06] bg-white p-4 animate-rise">
             <div className="flex items-center justify-between px-1">
               <Link href="/app" onClick={() => setMobileOpen(false)} className="flex items-center gap-2.5">
@@ -144,13 +161,14 @@ export function AppShell({ user, children }: { user: { name: string; email: stri
               <button type="button" onClick={() => setMobileOpen(false)} className="rounded-lg p-2 text-muted" aria-label="Close navigation"><X className="h-4 w-4" /></button>
             </div>
             <div className="mt-7">{navItems}</div>
+            {signOutError ? <ErrorNote className="mt-4">Could not sign out. {signOutError}</ErrorNote> : null}
             <div className="mt-auto rounded-xl border border-black/[0.07] p-3 text-[11px] text-muted">
               <p className="text-cream/80">{user.name}</p>
               <p className="mt-0.5 text-[10px]">{user.email}</p>
-              <button type="button" onClick={signOut} className="mt-3 flex items-center gap-2 text-[10.5px] text-muted hover:text-cream"><LogOut className="h-3 w-3" /> Sign out</button>
+              <button type="button" onClick={() => signOut()} disabled={signingOut} className="mt-3 flex items-center gap-2 text-[10.5px] text-muted hover:text-cream"><LogOut className="h-3 w-3" /> Sign out</button>
             </div>
           </aside>
-        </div>
+        </Modal>
       ) : null}
     </div>
   );

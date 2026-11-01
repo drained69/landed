@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { BellRing, Brain, Check, Pencil, Repeat, Sparkles, X } from "lucide-react";
-import { formatMinor, parseAmountToMinor } from "@/lib/money";
+import { decimalsFor, formatMinor, parseAmountToMinor } from "@/lib/money";
 import { cn, errorMessage, minorToMajorString, post } from "@/lib/client";
 import { Badge, Button, Card, CardHeader, EmptyState, ErrorNote, inputClass, Progress, SuccessNote } from "@/components/ui";
 import type { MemoryRef } from "@/server/engine/spending";
@@ -65,7 +65,7 @@ function RememberControl({
   editFirst?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(minorToMajorString(suggestedMinor));
+  const [value, setValue] = useState(minorToMajorString(suggestedMinor, decimalsFor(currency)));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -89,14 +89,14 @@ function RememberControl({
       <div className="flex items-center gap-1.5">
         {editing ? (
           <>
-            <span className="text-[12px] text-muted">$</span>
+            <span className="text-[12px] text-muted">{currency}</span>
             <input
               aria-label="Amount"
               className={cn(inputClass, "h-8 w-24 text-right tabular-nums")}
               value={value}
               inputMode="decimal"
               onChange={(e) => setValue(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") void submit(); }}
+              onKeyDown={(e) => { if (e.key === "Enter" && !busy) void submit(); }}
               autoFocus
             />
             <Button size="sm" onClick={submit} loading={busy}><Check className="h-3.5 w-3.5" /> Save</Button>
@@ -111,7 +111,7 @@ function RememberControl({
           </>
         )}
       </div>
-      {error ? <p className="text-[11px] text-red">{error}</p> : null}
+      {error ? <p role="alert" className="text-[11px] text-red">{error}</p> : null}
     </div>
   );
 }
@@ -126,7 +126,7 @@ export function SpendWatchView({ watch, baselineAlerts, isDemo }: { watch: Spend
     setNotice(
       w.writeStatus === "confirmed" && w.blobId
         ? { ok: true, text: `Remembered and written to Walrus Mainnet · blob ${w.blobId}. It now shapes every Spend Watch check.` }
-        : { ok: w.writeStatus !== "failed", text: `Remembered as a confirmed typed rule. Walrus write ${w.writeStatus}${w.error ? ` — ${w.error}` : ""}` },
+        : { ok: w.writeStatus !== "failed", text: `Your rule is saved in LANDED. Walrus write ${w.writeStatus}${w.error ? ` — ${w.error}` : ""}` },
     );
     router.refresh();
   }
@@ -140,8 +140,7 @@ export function SpendWatchView({ watch, baselineAlerts, isDemo }: { watch: Spend
         <div>
           <h1 className="font-display text-[28px] leading-tight text-cream sm:text-[34px]">Spend Watch</h1>
           <p className="mt-1.5 max-w-2xl text-[12.5px] leading-relaxed text-muted">
-            LANDED spots recurring charges and category drift on its own. It only <em>alerts</em> on limits and prices you
-            told it to remember — so every alert names the memory behind it.
+            Track recurring charges and spending by category. Alerts use the limits and subscription prices you approved, with the relevant lesson shown for each one.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -182,14 +181,14 @@ export function SpendWatchView({ watch, baselineAlerts, isDemo }: { watch: Spend
 
       <Card>
         <CardHeader
-          title={<span className="flex items-center gap-2"><BellRing className="h-4 w-4 text-amber" /> Alerts from what you told LANDED</span>}
+          title={<span className="flex items-center gap-2"><BellRing className="h-4 w-4 text-amber" /> Your spending alerts</span>}
           subtitle="Each alert exists only because a confirmed memory set the limit or approved the price."
         />
         {watch.alerts.length === 0 ? (
           <EmptyState
             icon={<Check className="h-5 w-5" />}
-            title="Nothing outside what you agreed to"
-            body="Remember a limit or approve a subscription price below and LANDED will watch it from now on — across sessions and devices."
+            title="No active spending alerts"
+            body="Set a spending limit or approve a subscription price below. LANDED checks your recorded transactions against those rules."
           />
         ) : (
           <ul className="divide-y divide-black/[0.06] border-t border-black/[0.06]">

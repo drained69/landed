@@ -115,7 +115,7 @@ export default async function SettingsPage() {
         },
       }}
       consents={consents.map((consent) => ({ consentType: consent.consentType, granted: consent.granted }))}
-      memoryNamespace={userNamespace(user.email)}
+      memoryNamespace={userNamespace(user.id)}
     />
   );
 }

@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { currencySchema } from "@/server/validation";
 import { prisma } from "@/server/db";
 import { api, ApiError, parseBody, rateLimit } from "@/server/api";
 import { createSession, hashPassword } from "@/server/auth";
@@ -6,7 +8,10 @@ import { signupSchema } from "@/lib/types";
 export const POST = api(async (req) => {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
   rateLimit(`signup:${ip}`, 10, 60_000);
-  const body = await parseBody(req, signupSchema);
+  const body = await parseBody(req, signupSchema.extend({ name: z.string().trim().min(1).max(80), currency: currencySchema.default("USD") }));
+  if (body.email.toLowerCase() === "demo@landed.app") {
+    throw new ApiError(409, "EMAIL_RESERVED", "This email address is reserved for the demo. Use your own email to create an account.");
+  }
   const existing = await prisma.user.findUnique({ where: { email: body.email.toLowerCase() } });
   if (existing) throw new ApiError(409, "EMAIL_TAKEN", "An account with that email already exists");
   const user = await prisma.user.create({

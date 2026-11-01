@@ -1,133 +1,118 @@
 <div align="center">
 
-<img src="src/app/icon.svg" alt="LANDED logo" width="72" height="72" />
+<img src="src/app/icon.svg" alt="LANDED" width="76" height="76" />
 
 # LANDED
 
-### Money that remembers.
+### Know what is safe to move — before you move it.
 
-**A personal-finance app that tells you what is actually safe to send, save or spend — and gets sharper every week because it remembers what really happened last time.**
+LANDED is a personal finance application that turns balances, bills, income, and real outcomes into one clear answer: **how much can you safely send, save, or spend right now?**
 
-[**Live app →**](https://landed-production-3dc8.up.railway.app) &nbsp;·&nbsp; [Demo script](docs/demo-script.md) &nbsp;·&nbsp; [Architecture](docs/architecture.md) &nbsp;·&nbsp; [Technical blog](docs/blog.md) &nbsp;·&nbsp; [Submission checklist](docs/submission.md)
+It keeps a durable, portable memory of what actually happened, so each later recommendation is grounded in evidence rather than a fresh guess.
 
-Built for the **Tatum × Walrus — Total Recall** hackathon · Consumer Finance track
+[**Live application →**](https://landed-production-3dc8.up.railway.app) &nbsp;·&nbsp; [Product tour](docs/demo-script.md) &nbsp;·&nbsp; [Architecture](docs/architecture.md) &nbsp;·&nbsp; [Engineering notes](docs/blog.md)
 
-`Next.js 16` · `React 19` · `TypeScript` · `Prisma` · `Walrus Memory (MemWal)` · `Tatum Sui GraphQL + Data API` · `Vitest (82 tests)`
+`Next.js 16` · `React 19` · `TypeScript` · `Prisma` · `Walrus Memory` · `Tatum`
 
 </div>
 
 ---
 
-## Contents
+## Overview
 
-- [The problem](#the-problem)
-- [What LANDED does](#what-landed-does)
-- [Try it](#try-it)
-- [Features](#features)
-- [How memory changes the answer](#how-memory-changes-the-answer)
-- [Architecture](#architecture)
-- [Walrus Memory integration](#walrus-memory-integration)
-- [Tatum integration](#tatum-integration)
-- [Design principles](#design-principles)
-- [Security and privacy](#security-and-privacy)
-- [Getting started](#getting-started)
-- [Configuration](#configuration)
-- [Going live on Mainnet](#going-live-on-mainnet)
-- [Deployment](#deployment)
-- [API reference](#api-reference)
-- [Data model](#data-model)
-- [Testing](#testing)
-- [Project structure](#project-structure)
-- [Hackathon requirements](#hackathon-requirements)
-- [Current status and limitations](#current-status-and-limitations)
-- [Roadmap](#roadmap)
+A balance alone is not a plan. Rent is due in nine days, a phone bill is scheduled, groceries are still coming, and part of the account should never be touched. Most finance tools report the total and leave the judgment to you. Most also forget what happened next: the transfer that cost more than quoted, the salary that arrived late, the subscription that quietly increased.
 
----
-
-## The problem
-
-Most money apps answer *"what is my balance?"* That is the wrong question. The balance includes rent due in nine days, a phone bill, the groceries you will buy this week and the cushion you never want to touch. And most apps forget everything the moment you close them: the transfer that cost more than quoted, the salary that arrived late, the subscription that quietly went up.
-
-LANDED answers the question people actually have — **"what is safe to move right now?"** — and it **remembers** what happened after each answer, so the next one is better.
-
-## What LANDED does
+LANDED answers the question people actually ask — *what is safe to move right now?* — then records the real outcome and turns confirmed lessons into rules that shape future advice.
 
 ```text
-your money context  →  deterministic decision  →  you act  →  the real outcome
-        ↑                                                            │
-        └──── memory that changes advice  ←  you confirm a lesson  ←─┘
+financial context  →  deterministic decision  →  action  →  observed outcome
+       ↑                                                        │
+       └──────  confirmed memory  ←  user approval  ←───────────┘
 ```
 
-1. **Sees the real picture.** Cleared balances, upcoming bills, savings goals and expected income, simulated day by day over 45 days in integer cents.
-2. **Decides, and shows its work.** Safe-to-move, a recommended amount and timing, the best payment route by what actually lands, and the no-memory baseline side by side.
-3. **Records what really happened.** Fees, delivery time, money left over — typed in, or read from a Sui transaction through Tatum.
-4. **Learns, with your permission.** An Advice Autopsy separates facts from guesses and drafts lessons. Nothing becomes memory until you confirm it.
-5. **Remembers on Walrus.** Confirmed lessons become typed rules stored on Walrus Memory, recalled on later decisions, graded by later outcomes, and restorable on any device.
+The result is a finance product that behaves less like a dashboard and more like a careful advisor with a documented memory.
 
-## Try it
+## Live application
 
 | | |
 | --- | --- |
-| **Live app** | https://landed-production-3dc8.up.railway.app |
-| **Create an account** | Two-minute setup: balance, bills, last paycheck. No bank login, no wallet. |
-| **Explore the demo** | **Explore the live demo** on the landing page opens a clearly labelled synthetic account with a few weeks of learning already in it. |
+| **Application** | https://landed-production-3dc8.up.railway.app |
+| **New account** | Two-minute setup: current balance, recurring bills, last paycheck. No bank login or wallet required. |
+| **Demo account** | Choose **Explore the live demo** on the landing page, or use `demo@landed.app` / `landed-demo-2026`. The demo is clearly labelled synthetic data with several weeks of learning already recorded. |
 
-Suggested five-minute tour of the demo: **Overview** (safe-to-move $150 and the learning curve) → **Plan a move** (ask to send $300; see "$150 now, $150 after payday" next to the no-memory "$300") → **Spend Watch** (two alerts that exist only because of memory) → **Memory** (track record, Total Recall) → **Ask LANDED**: *"Can I spend $60 on dining tonight?"* and *"What did you tell me last time I asked about sending money?"* The full walkthrough is in [docs/demo-script.md](docs/demo-script.md).
+A short product tour:
 
-## Features
+1. **Overview** — safe-to-move, projected low point, protected bills, and the learning curve.
+2. **Plan a move** — ask to send $300; compare the memory-informed answer with the no-memory baseline.
+3. **Spend Watch** — see alerts that exist only because the user previously approved a rule.
+4. **Memory** — inspect lesson status, evidence, confidence, blob IDs, and Total Recall.
+5. **Ask LANDED** — *“Can I spend $60 on dining tonight?”* and *“What did you tell me last time I asked about sending money?”*
 
-### Safe-to-move and decisions
-- **45-day cash-flow simulation** in integer minor units: essential and important bills, recurring obligations, savings contributions, variable spending inferred from history, and a safety buffer.
-- **Expected income is never treated as cash** until it lands, unless you opt in per decision — and even then it is reliability-weighted.
-- **Decisions with a counterfactual.** Every recommendation stores its exact input snapshot, the memory-informed action, the no-memory baseline, the prediction, and the memories that changed it.
-- **Route ranking by what lands** — recipient amount, total cost, speed and evidence quality — adjusted by remembered route outcomes.
-- **Learning Replay**: re-run any decision on its identical snapshot with and without memory; memories learned *after* the decision can never leak back into it.
+The full walkthrough is in [docs/demo-script.md](docs/demo-script.md).
 
-### Memory that learns, and admits when it is wrong
-- **Advice Autopsy**: predicted vs observed, numeric errors, confirmed causes vs hypotheses, and draft lessons.
-- **Typed lessons** (11 rule kinds) that change cash-flow math, caps, splits and route ranking — each change attributed to the memory that caused it.
-- **Track record**: every outcome grades the lessons behind its decision (*held* / *contradicted*). Confidence moves with evidence and weights how strongly a rule acts next time; a lesson that keeps failing is flagged for review, never silently deleted.
-- **Getting sharper every week**: a weekly chart of rules in force and advice that worked, on the Overview and Memory pages.
+## Capabilities
+
+### Safe-to-move decisions
+- A **45-day cash-flow simulation** covering essential and important bills, recurring obligations, savings contributions, historical variable spending, and a protected buffer.
+- Balances and transaction amounts use **integer minor units**. Exchange-rate calculations use numeric rates and round to the destination currency’s minor unit; model-generated explanations do not calculate the amounts.
+- **Expected income is not treated as cash** until it arrives, unless the user opts in per decision; even then it is reliability-weighted.
+- Every recommendation preserves its input snapshot, the memory-informed action, the no-memory baseline, its prediction, and the memories that changed it.
+- **Route ranking by the amount expected to arrive**, accounting for recipient amount, total cost, speed, and evidence quality.
+- **Learning Replay** re-runs a decision on the identical snapshot with and without memory. Lessons learned after the decision cannot leak backwards.
+
+### Memory that improves advice
+- **Advice Autopsy** separates observed facts from hypotheses, calculates prediction error, and drafts candidate lessons.
+- **Typed rules** change cash-flow math, transfer caps, splits, reserves, and route ranking. Every adjustment names the memory responsible for it.
+- **Nothing becomes memory automatically.** The user reviews and confirms each lesson before it is persisted.
+- **Track record** grades every lesson behind an outcome as *held* or *contradicted*. Confidence moves with evidence and weights how strongly the rule acts next time. A repeatedly failing lesson is flagged for review, never silently deleted.
+- **Learning curve** shows rules in force and advice that held over time.
 
 ### Spend Watch
-- Detects **recurring charges** (fixed price, regular schedule) and **category pace** against your usual month.
-- **Alerts only on rules you chose**: a learned monthly limit (`SPEND_LIMIT`) or an approved subscription price (`SUBSCRIPTION_WATCH`). Without memory there are zero alerts by construction; with memory every alert names the memory behind it.
-- Rules are **recalled from Walrus** on every check, with per-rule provenance (*recalled from Walrus* vs *local ledger*) and visible recall coverage.
-- Ask LANDED applies them too: cash flow may say yes while your own dining limit says no.
+- Detects recurring charges with fixed prices and regular schedules, plus category spending that is running ahead of the user's usual month.
+- Alerts only against rules the user chose: a learned monthly `SPEND_LIMIT` or an approved subscription price (`SUBSCRIPTION_WATCH`).
+- Without memory there are no alerts by construction. With memory, every alert identifies the lesson behind it.
+- Rules are recalled from Walrus on every check, with visible provenance: *recalled from Walrus* or *local ledger*.
 
 ### Total Recall
-- Memory belongs to the **person, not the device**: the Walrus namespace is derived from the sign-in.
-- **Restore from Walrus** rebuilds the ledger on a fresh install — lessons, their latest confidence, replaced rules, and the track record.
-- **Relayer inventory** (`listMemories`) independently confirms what is really stored.
+- Memory belongs to the person, not the device. The Walrus namespace is derived server-side from the account ID.
+- **Restore from Walrus** rebuilds available lessons, current confidence, superseded rules, and the track record for the same account.
+- Relayer inventory independently confirms what is stored, separate from LANDED's own database.
 
-### Decision journal (opt-in)
-- Each answer's question, advice and reasoning is kept on Walrus in its own namespace. Ask *"what did you tell me last time?"* weeks later. It is never used as a rule.
+### Decision journal
+- An opt-in record of each question, recommendation, and reasoning, stored in a dedicated Walrus namespace.
+- Supports questions such as *“What did you tell me last time?”*
+- Journal entries are recall-only and can never act as financial rules.
 
-### Real-world inputs
-- **Onboarding** with balance, bills (with repeat schedules) and the last paycheck — income is forecast from its cadence.
-- **Add transactions** or **import your bank's CSV export** (signed amounts, duplicate-safe by hash).
-- **Sui wallet sync** and **transaction verification** through Tatum; **sourced exchange rates** from Tatum's Data API.
-- **Optional AI explanations** in plain language — and any explanation containing a number LANDED did not compute is discarded.
+### Connected data
+- **Guided onboarding** for balances, recurring bills, and the last paycheck; income is forecast from its cadence.
+- **Transaction entry** and **CSV import** with signed amounts, duplicate detection, and import batches.
+- **Sui wallet sync** and **transaction verification** through Tatum, including sourced exchange rates.
+- **Optional AI explanations** in plain language. Any explanation containing a number LANDED did not compute is discarded.
 
 ### Account and data controls
-- Change password (signs out other devices), delete account, export everything as JSON, per-lesson exclusion, opt-in consents, and a plain-language [privacy page](https://landed-production-3dc8.up.railway.app/privacy).
+- Change password and revoke other sessions.
+- Export all data as JSON.
+- Exclude individual lessons from future advice.
+- Manage opt-in consents.
+- Delete the account.
+- Read a plain-language privacy policy in the application.
 
 ## How memory changes the answer
 
-Same person, same balance, same question: **"Can I send $300 to my sister today?"**
+Illustrative example using the same balance and the same question: **“Can I send $300 to my sister today?”** Results depend on the actual records and confirmed lessons.
 
 | | Without memory | With LANDED's memory |
 | --- | --- | --- |
-| Answer | **Send $300** | **Send $150 now, $150 after payday** |
-| Why | Balance covers it | A confirmed lesson caps a single move at 50% of safe-to-move when rent is near; a remembered route outcome prefers the reliable route |
-| Evidence | — | Each adjustment names its memory ID (and Walrus blob ID once written) |
+| **Answer** | Send **$300** | Recommend **$150 now**; reassess the remainder after income arrives |
+| **Why** | The balance covers it | A confirmed lesson caps a single move at 50% of safe-to-move while rent is near; a remembered route outcome favors the more reliable route |
+| **Evidence** | — | Each adjustment names its memory ID and, once written, its Walrus blob ID |
 
-And on spending:
+The same mechanism applies to everyday spending:
 
 | | Without memory | With memory |
 | --- | --- | --- |
-| Spend Watch alerts | **0** | **2** — *Streaming bundle charged $21.99 — you approved $18.00*; *Dining is $32 over your $120 limit* |
-| "Can I spend $60 on dining?" | Cash allows it | *"Cash-wise, yes. By the limit you asked me to hold, it would put dining $92 over — so no."* |
+| **Spend Watch alerts** | **0** | **2** — *Streaming bundle charged $21.99; approved price is $18.00* and *Dining is $32 over the $120 limit* |
+| **“Can I spend $60 on dining?”** | Cash allows it | *“Cash-wise, yes. By the limit you asked me to hold, it would put dining $92 over — so no.”* |
 
 ## Architecture
 
@@ -136,84 +121,91 @@ flowchart LR
     subgraph Browser
         UI[Next.js App Router UI<br/>React 19 · Tailwind v4 · Recharts]
     end
-    subgraph Server["Next.js server (Node)"]
+
+    subgraph Server["Next.js server · Node"]
         API[Route handlers<br/>auth · validation · ownership]
         ENG[Deterministic engines<br/>cash flow · decisions · routes<br/>outcomes · evidence · spending]
-        SVC[Services<br/>memory · tatum · rates · explain]
-        DB[(Prisma<br/>SQLite / Postgres)]
+        SVC[Services<br/>memory · Tatum · rates · explanations]
+        DB[(Prisma<br/>SQLite / PostgreSQL)]
     end
+
     subgraph External
-        WAL[Walrus Memory relayer<br/>Mainnet · SEAL-encrypted blobs]
-        TRPC[Tatum Sui GraphQL gateway]
-        TDATA[Tatum Data API<br/>exchange rates]
-        LLM[Optional OpenAI-compatible LLM]
+        WAL[Walrus Memory relayer<br/>Mainnet · encrypted blobs]
+        TGRAPHQL[Tatum Sui GraphQL]
+        TDATA[Tatum Data API]
+        LLM[Optional OpenAI-compatible model]
     end
-    UI --> API --> ENG
+
+    UI --> API
+    API --> ENG
     API --> SVC
     ENG --> DB
     SVC --> DB
     SVC --> WAL
-    SVC --> TRPC
+    SVC --> TGRAPHQL
     SVC --> TDATA
-    SVC -.optional.-> LLM
+    SVC -. optional .-> LLM
 ```
-
-- **Deterministic core.** All money math lives in pure, tested TypeScript engines (`src/server/engine/*`) using integer minor units. No floating-point money, no LLM arithmetic.
-- **Authoritative database, portable memory.** The database row holds the authoritative typed rule and is the authorization boundary; Walrus holds the portable, self-describing copy that survives devices and installs.
-- **Integrations degrade honestly.** Without credentials, Walrus features report *blocked* and Tatum returns HTTP 503 with an explicit *not configured* state — never a simulated success.
 
 | Layer | Technology |
 | --- | --- |
-| Framework | Next.js 16.4 (App Router, Turbopack), React 19, TypeScript 5 |
-| UI | Tailwind CSS v4, Recharts, Lucide icons; Hanken Grotesk, Shantell Sans and JetBrains Mono via `next/font` |
-| Data | Prisma 6 — SQLite by default, schema portable to PostgreSQL |
-| Memory | `@mysten-incubation/memwal` — Walrus Memory on Mainnet |
-| Onchain | Tatum Sui GraphQL gateway, Tatum Data API v4 |
+| Application | Next.js 16.4 App Router, React 19, TypeScript 5 |
+| Interface | Tailwind CSS v4, Recharts, Lucide; variable fonts via `next/font` |
+| Data | Prisma 6, SQLite by default with a PostgreSQL-portable schema |
+| Memory | `@mysten-incubation/memwal` on Walrus Mainnet |
+| Onchain data | Tatum Sui GraphQL, Tatum Data API v4 |
 | Validation | Zod 4 |
-| Tests | Vitest 5, including the SDK's own `MemWalMock` |
-| Deploy | Docker (Node 22 Alpine) on Railway |
+| Testing | Vitest 5, including the Walrus SDK mock |
+| Deployment | Multi-stage Docker image on Railway |
 
-## Walrus Memory integration
+### Design principles
+
+1. **No fabricated confirmations.** A memory is `confirmed` only when the relayer returns a blob ID. Otherwise it is `blocked`, `failed`, or `pending`, and the interface says so.
+2. **The user approves memory.** Outcomes propose lessons; people confirm them.
+3. **Deterministic financial logic.** Every amount, cap, reserve, and comparison is computed in tested code.
+4. **Every adjustment is attributable.** Advice names the memory that changed it.
+5. **Memory can be wrong.** Track records reduce the influence of lessons that fail.
+6. **Blockchain stays in the background.** Dollars come first; chain details appear only as proof.
+
+## Memory model
+
+LANDED separates the authoritative rule from its portable copy:
+
+- **Database:** authoritative typed rule, ownership boundary, and audit trail.
+- **Walrus:** self-describing text containing the typed rule, scope, and supporting context, available across devices and installations.
+
+On recall, the database rule wins. The Walrus text is a fallback, so a malformed blob cannot silently rewrite financial logic. Walrus blobs are immutable; changes are appended rather than overwritten.
 
 ### Namespaces
 
-| Namespace | Holds | Used as a rule? |
+| Namespace | Contents | Used as a rule? |
 | --- | --- | --- |
-| `landed-<24 hex>` | Confirmed lessons as portable text with the typed rule embedded | **Yes** — recalled for decisions and Spend Watch |
-| `landed-<24 hex>-updates` | Append-only lesson changes: confidence moves, supersession, exclusion | Replayed newest-wins on restore |
-| `landed-<24 hex>-journal` | Opt-in decision journal (question, advice, reasoning) | **Never** — recall only |
+| `landed-<24 hex>` | Confirmed lessons with embedded typed rules | **Yes** — recalled for decisions and Spend Watch |
+| `landed-<24 hex>-updates` | Append-only confidence changes, supersession, and exclusions | Replayed newest-wins on restore |
+| `landed-<24 hex>-journal` | Opt-in question, advice, and reasoning record | **Never** — recall only |
 
-`<24 hex>` is `sha256("landed:email:" + normalized sign-in email)`, derived server-side. Because it is tied to the person rather than a database row, a new device or a fresh install recalls the same memory.
+`<24 hex>` is the first 24 hexadecimal characters of `sha256("landed:account:" + userId)`, derived server-side. The same account can restore its memory across devices. A newly created account, even with the same email, cannot access the previous account’s namespace. Existing email-derived blobs remain in their original namespace; confirmed local lessons can be saved to the current namespace from Memory.
 
-### SDK calls used
-
-| Call | Where | Purpose |
-| --- | --- | --- |
-| `rememberAndWait` | `writeMemoryToWalrus`, `flushLessonUpdates`, journal | Write and wait for the relayer to return a blob ID — only then is a record `confirmed` |
-| `recall` | decisions, Spend Watch, journal, restore | Semantic recall from the account's namespaces |
-| `restore` | Restore from Walrus | Ask the relayer to re-index blobs it is missing before recall |
-| `listMemories` | relayer inventory, `walrus:verify` | Count what is actually stored, independently of LANDED's database |
-| `health` | integrations status | Reachability and write readiness |
-
-### Lifecycle of a lesson
+### Lesson lifecycle
 
 ```mermaid
 sequenceDiagram
-    participant U as You
+    participant U as User
     participant L as LANDED
     participant DB as Database
     participant W as Walrus Memory
-    L->>U: Advice (memory-informed + no-memory baseline)
+
+    L->>U: Recommendation with no-memory baseline
     U->>L: Record the real outcome
-    L->>DB: Autopsy → draft lessons (hypotheses)
+    L->>DB: Autopsy → draft lessons
     U->>L: Confirm a lesson
-    L->>DB: Typed rule, user_confirmed
+    L->>DB: Typed rule marked user_confirmed
     L->>W: rememberAndWait(portable text) → blob ID
-    Note over L,W: Next decision recalls it; the rule changes the answer
+    Note over L,W: Later decisions recall the rule and change the answer
     U->>L: Record the next outcome
-    L->>DB: Verdict held / contradicted → confidence moves
-    L->>W: Append update to -updates namespace
-    Note over U,W: New device: Restore from Walrus rebuilds lessons, state and track record
+    L->>DB: Verdict held or contradicted → confidence changes
+    L->>W: Append update to the updates namespace
+    Note over U,W: New device: Restore from Walrus rebuilds lessons and track record
 ```
 
 ### Typed rules
@@ -221,9 +213,9 @@ sequenceDiagram
 | Rule | Effect |
 | --- | --- |
 | `AMOUNT_CAP` | Cap a single move at a share of safe-to-move |
-| `SPLIT_TRANSFER` | Split a risky transfer; remainder after income |
-| `DELAY_REMAINDER` | Wait for income before the remainder |
-| `RESERVE_COMMITMENT` | Reserve extra for a matching bill inside N days |
+| `SPLIT_TRANSFER` | Split a risky transfer and schedule the remainder |
+| `DELAY_REMAINDER` | Wait for income before sending the remainder |
+| `RESERVE_COMMITMENT` | Reserve extra for a matching bill within N days |
 | `EXCLUDE_EXPECTED_INCOME` | Ignore income below a reliability threshold |
 | `BUFFER_FLOOR` | Raise the protected buffer |
 | `ROUTE_PENALTY` / `ROUTE_PREFERENCE` | Adjust route scores from observed outcomes |
@@ -231,128 +223,172 @@ sequenceDiagram
 | `SPEND_LIMIT` | Monthly category limit for Spend Watch and purchase checks |
 | `SUBSCRIPTION_WATCH` | Approved price for a recurring merchant |
 
-On recall the **database rule wins** and the Walrus text is a fallback, so a malformed blob can never silently rewrite financial logic. Walrus blobs are immutable, so changes are **appended**, never overwritten. Only confirmed lessons and verified journal entries are ever written — drafts and rejected lessons never leave the database.
+Only confirmed lessons and verified journal entries are written to Walrus. Drafts and rejected lessons remain in the database.
 
-## Tatum integration
+## Integrations
 
-### Sui GraphQL (`sui-mainnet.gateway.tatum.io/graphql`)
+### Walrus Memory
 
-Sui has retired JSON-RPC, so LANDED reads Sui through Tatum's GraphQL gateway.
+LANDED uses the Walrus Memory SDK for `rememberAndWait`, `recall`, `restore`, `listMemories`, and `health`. A record is confirmed only after the relayer returns a blob ID. Restore asks the relayer to re-index missing blobs before recall, and verification compares the local ledger with relayer inventory.
+
+Walrus Memory is optional at runtime. Without credentials, memory features report `blocked` or `not configured`; the application never simulates a write.
+
+### Tatum
+
+Sui reads use Tatum's GraphQL gateway at `https://sui-mainnet.gateway.tatum.io/graphql`.
 
 | Query | Used for |
 | --- | --- |
-| `checkpoint { sequenceNumber }` | Health and reachability |
+| `checkpoint { sequenceNumber }` | Reachability and health |
 | `address { balances { coinType totalBalance coinMetadata } }` | Wallet balances with correct decimals |
-| `address { transactions(relation: AFFECTED) }` | Wallet history import, incoming and outgoing (duplicate-safe) |
-| `transaction(digest) { effects { status gasEffects balanceChanges } }` | Outcome evidence: status, sender, per-owner balance changes, net gas |
+| `address { transactions(relation: AFFECTED) }` | Wallet history import, incoming and outgoing |
+| `transaction(digest) { effects { status gasEffects balanceChanges } }` | Settlement evidence: status, sender, balance changes, net gas |
 
-Tatum's free plan allows 3 requests per second; rate-limited calls back off and retry.
+A transaction digest entered with an outcome is **re-read through Tatum server-side** before anything is marked `onchain_verified`. The browser's claim is never trusted. Lessons drafted from verified outcomes carry `verified_onchain` evidence.
 
-A digest pasted when recording an outcome fills the facts in the decision's currency, and the server **re-reads it through Tatum** before marking anything `onchain_verified` — the browser's claim is never trusted. Lessons drafted from a verified outcome carry `verified_onchain` evidence.
+Tatum's Data API supplies exchange rates through `POST /v4/data/rate/symbol/batch`, cached for 60 seconds. Rates remain exact decimal strings and are applied with BigInt arithmetic. Converted values are shown with source and timestamp, and are never added to safe-to-move.
 
-### Data API
+Tatum's free plan allows three requests per second; rate-limited calls back off and retry. Without `TATUM_API_KEY`, onchain routes return HTTP 503 with an explicit `not configured` state. LANDED never substitutes a public RPC.
 
-`POST /v4/data/rate/symbol/batch` supplies exchange rates (cached 60 s). Rates are kept as the exact decimal string returned and applied with BigInt arithmetic; converted values (SUI/stablecoin balances, gas in USD) are shown with their source and time and **never added to safe-to-move**.
+### AI explanations
 
-## Design principles
-
-1. **No fabricated confirmations.** `confirmed` requires a returned blob ID or a successful onchain digest; otherwise the state is `blocked`, `failed` or `pending`, and the UI says so.
-2. **Nothing becomes memory automatically.** Outcomes propose; you confirm.
-3. **Integer money, deterministic math.** Parsing, rounding, caps, reserves and comparisons use integer minor units; rate conversion uses BigInt.
-4. **Every adjustment is attributable.** Each change to advice names the memory that caused it.
-5. **Memory can be wrong — and says so.** Track records lower trust in lessons that fail.
-6. **Blockchain stays invisible.** Dollars first; chain details appear only as proof.
+The AI layer is optional and OpenAI-compatible. It receives a compact, server-built explanation request and cannot compute amounts, rank routes, confirm outcomes, or write memory. With no configuration, deterministic explanations are used.
 
 ## Security and privacy
 
-- **Authentication**: scrypt-hashed passwords, random session tokens stored only as SHA-256 hashes, `httpOnly` + `SameSite=Lax` + `Secure` cookies, 30-day sessions, password change revokes other sessions.
-- **Authorization**: every query is scoped by the authenticated user ID; cross-user access is tested against a real database. Walrus is never the authorization boundary.
-- **Request hardening**: Zod validation on every input, origin checks on writes, per-user and per-IP rate limits, security headers (`X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, HSTS), no `X-Powered-By`.
-- **Secrets**: Tatum, Walrus and AI keys are server-only and never prefixed `NEXT_PUBLIC_`.
-- **Data rights**: JSON export, per-lesson exclusion, account deletion, opt-in consents. Walrus blobs are encrypted by Walrus Memory and permanent; the app states this before deletion.
-- See the in-app [privacy and terms](https://landed-production-3dc8.up.railway.app/privacy).
+- **Authentication:** scrypt-hashed passwords, random session tokens stored only as SHA-256 hashes, `httpOnly` + `SameSite=Lax` + `Secure` cookies, 30-day sessions. Changing a password revokes other sessions.
+- **Authorization:** every query is scoped by the authenticated user ID. Cross-user access is tested against a real database. Walrus is never the authorization boundary.
+- **Request hardening:** Zod validation on inputs, origin checks on writes, per-user and per-IP rate limits, and security headers including HSTS, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, and `Permissions-Policy`.
+- **Secrets:** Tatum, Walrus, and AI credentials are server-only and never prefixed `NEXT_PUBLIC_`.
+- **Data rights:** JSON export, per-lesson exclusion, account deletion, and opt-in consents. The application explains that Walrus blobs are encrypted and permanent before account deletion.
 
 ## Getting started
 
-**Prerequisites:** Node.js 22+, pnpm 9.
+**Prerequisites:** Node.js 22+ and pnpm 9.
 
 ```bash
 pnpm install
 cp .env.example .env
-pnpm setup      # prisma generate + schema + demo seed
+pnpm setup      # generate Prisma client, apply schema, seed the demo
 pnpm dev
 ```
 
-Open http://localhost:3000. Create an account, or choose **Explore the live demo** (demo login: `demo@landed.app` / `landed-demo-2026`).
+Open http://localhost:3000. Create an account, or choose **Explore the live demo**.
 
 | Command | Purpose |
 | --- | --- |
 | `pnpm dev` | Development server |
-| `pnpm build` · `pnpm start` | Production build · serve |
-| `pnpm typecheck` · `pnpm lint` · `pnpm test` | Quality gates |
+| `pnpm build` / `pnpm start` | Production build and serve |
+| `pnpm typecheck` / `pnpm lint` / `pnpm test` | Quality gates |
 | `pnpm setup` | Generate client, apply schema, seed demo |
-| `pnpm db:seed` | Recreate the demo account deliberately |
-| `pnpm db:reset` | Force-reset the local database and reseed |
+| `pnpm db:seed` | Recreate the demo account |
+| `pnpm db:reset` | Reset the local database and reseed |
 | `pnpm demo:snapshot` | Print the demo's headline numbers and learning curve |
-| `pnpm walrus:backfill [--dry-run] [--include-synthetic]` | Write confirmed lessons, journal entries and their updates to Walrus |
-| `pnpm walrus:verify [--min=10]` | Verify confirmed writes against the ledger **and** the relayer inventory |
+| `pnpm walrus:backfill` | Write confirmed lessons, journal entries, and updates to Walrus |
+| `pnpm walrus:verify` | Verify the local ledger against relayer inventory |
 
 ## Configuration
 
 | Variable | Required | Description |
 | --- | --- | --- |
-| `DATABASE_URL` | yes | `file:./dev.db` locally; `file:/app/data/landed.db` in the container |
-| `NEXT_PUBLIC_APP_URL` | yes | Public base URL |
-| `TATUM_API_KEY` | for onchain features | Tatum key (server-only); enables Sui reads and the Data API |
-| `TATUM_SUI_RPC_URL` | no | Defaults to `https://sui-mainnet.gateway.tatum.io` |
-| `TATUM_SUI_NETWORK` | no | `mainnet` |
-| `TATUM_DATA_API_URL` | no | Defaults to `https://api.tatum.io` |
-| `MEMWAL_PRIVATE_KEY` | for Walrus | Walrus Memory **delegate** key (never the owner key) |
-| `MEMWAL_ACCOUNT_ID` | for Walrus | Walrus Memory account ID |
-| `MEMWAL_SERVER_URL` | no | Defaults to `https://relayer.memory.walrus.xyz` |
-| `MEMWAL_APP_PREFIX` | no | Namespace prefix, default `landed` |
-| `AI_BASE_URL` · `AI_API_KEY` · `AI_MODEL` | no | Optional OpenAI-compatible explanations |
-| `LANDED_DEMO_ENABLED` | no | `false` disables the demo login |
-| `LANDED_SEED_DEMO` | no | `true` seeds the demo once on container boot |
-
-## Going live on Mainnet
-
-1. In the Walrus Memory dashboard, create an agent and a **delegate key**; set `MEMWAL_PRIVATE_KEY` and `MEMWAL_ACCOUNT_ID`.
-2. Create a Tatum API key; set `TATUM_API_KEY`.
-3. Write and verify memories:
-   ```bash
-   pnpm walrus:backfill --include-synthetic   # demo account only; real users' confirmed lessons are written as they confirm them
-   pnpm walrus:verify
-   ```
-4. In the app: **Memory → Walrus verification** shows relayer counts; **Settings → Integrations** shows Tatum RPC reachability and a live SUI/USD rate.
-
-On a deployed instance, run the backfill inside the service, e.g. `railway ssh -- ./node_modules/.bin/tsx scripts/walrus-backfill.ts --include-synthetic`.
+| `DATABASE_URL` | Yes | `file:./dev.db` locally; `file:/app/data/landed.db` in the container |
+| `NEXT_PUBLIC_APP_URL` | Yes | Public base URL |
+| `TATUM_API_KEY` | For onchain features | Server-only Tatum key; enables Sui reads and the Data API |
+| `TATUM_SUI_RPC_URL` | No | Defaults to `https://sui-mainnet.gateway.tatum.io` |
+| `TATUM_SUI_NETWORK` | No | `mainnet` |
+| `TATUM_DATA_API_URL` | No | Defaults to `https://api.tatum.io` |
+| `MEMWAL_PRIVATE_KEY` | For Walrus | Walrus Memory delegate key; never the owner key |
+| `MEMWAL_ACCOUNT_ID` | For Walrus | Walrus Memory account ID |
+| `MEMWAL_SERVER_URL` | No | Defaults to `https://relayer.memory.walrus.xyz` |
+| `MEMWAL_APP_PREFIX` | No | Namespace prefix, default `landed` |
+| `AI_BASE_URL` / `AI_API_KEY` / `AI_MODEL` | No | Optional OpenAI-compatible explanations |
+| `LANDED_DEMO_ENABLED` | No | `false` disables the demo login |
+| `LANDED_SEED_DEMO` | No | `true` seeds the demo once on container boot |
 
 ## Deployment
 
-The repository ships a production `Dockerfile` and `railway.json`.
+The repository includes a production `Dockerfile` and `railway.json`.
 
-**Railway** (how the live app runs):
+### Railway
 
-1. Create a service from this repository (Dockerfile build).
-2. Attach a volume at **`/app/data`** (SQLite lives at `/app/data/landed.db`).
-3. Set `RAILWAY_RUN_UID=0` (Railway volumes are root-owned), `PORT=3000`, `NEXT_PUBLIC_APP_URL`, and `LANDED_SEED_DEMO=true` if you want the demo.
-4. Add the Tatum and Walrus keys when you have them.
+1. Create a service from the repository using the Dockerfile builder.
+2. Attach a volume at **`/app/data`**. SQLite lives at `/app/data/landed.db`.
+3. Set `RAILWAY_RUN_UID=0` so the container can write to the Railway volume, plus `PORT=3000` and `NEXT_PUBLIC_APP_URL`.
+4. Set `LANDED_SEED_DEMO=true` to create the labelled demo account on first boot.
+5. Add Tatum and Walrus credentials when enabling Mainnet integrations.
 
-Boot runs `prisma db push`, seeds the demo **once** (`--if-missing`), and on later boots rolls the demo's dates forward instead of reseeding — so its story stays current while lesson IDs and Walrus blob IDs never change. The healthcheck is `GET /api/health`, which verifies the database.
+On boot the container applies the Prisma schema and, if enabled, seeds the demo **once**. Later boots roll the demo's dates forward instead of reseeding, preserving lesson IDs and Walrus blob IDs. The healthcheck is `GET /api/health`, which verifies database access.
 
-**Docker anywhere:**
+### Docker
 
 ```bash
 docker build -t landed .
-docker run -p 3000:3000 -v landed-data:/app/data -e LANDED_SEED_DEMO=true landed
+docker run -p 3000:3000 \
+  -v landed-data:/app/data \
+  -e LANDED_SEED_DEMO=true \
+  landed
 ```
 
-For managed PostgreSQL, change the Prisma datasource provider and run migrations in a release step. Full details: [docs/setup.md](docs/setup.md).
+For managed PostgreSQL, change the Prisma datasource provider and run migrations in a release step. Full instructions are in [docs/setup.md](docs/setup.md).
+
+### Enabling Mainnet integrations
+
+1. Create a Walrus Memory agent and a **delegate key**; set `MEMWAL_PRIVATE_KEY` and `MEMWAL_ACCOUNT_ID`.
+2. Create a Tatum API key; set `TATUM_API_KEY`.
+3. Write and verify memories:
+
+```bash
+pnpm walrus:backfill --include-synthetic   # demo account only
+pnpm walrus:verify
+```
+
+4. Confirm status in **Memory → Walrus verification** and **Settings → Integrations**.
+
+On a deployed Railway service, run backfill inside the container:
+
+```bash
+railway ssh -- ./node_modules/.bin/tsx scripts/walrus-backfill.ts --include-synthetic
+```
+
+## Quality
+
+```bash
+pnpm typecheck && pnpm lint && pnpm test && pnpm build
+```
+
+The suite contains **85 tests across 16 files**, covering:
+
+- Money parsing, zero-decimal currencies, rounding, and formatting.
+- Cash flow, income exclusion, caps, reserves, recurring bills, and shortfalls.
+- Route ranking, payout deductions, expired quotes, autopsy, and lesson extraction.
+- Replay cutoff clamping, so later lessons cannot leak into earlier decisions.
+- Spend Watch recurrence detection, memory-only alerts, and purchase checks.
+- Track-record verdicts, bounded confidence, and review thresholds.
+- Walrus flows against the SDK mock: confirmed writes, inventory, recall coverage, update flushing, journal recall, and same-account restore.
+- Portable memory text round trips and corrupted-rule handling.
+- BigInt rate conversion, CSV import, and AI explanation guards.
+- Cross-user authorization and demo-clock behavior.
+
+## Project structure
+
+```text
+src/
+  app/                  Pages and API route handlers
+  components/           Dashboard, plan, Spend Watch, memory, decisions, settings
+  lib/                  Shared types, money primitives, client helpers
+  server/
+    engine/             Cash flow, decisions, routes, outcomes, evidence, spending
+    services/           Walrus memory, Tatum, rates, decisions, spending, explanations
+    api.ts · auth.ts    Route wrapper and session management
+prisma/                 Schema and labelled demo seed
+scripts/                Walrus backfill/verify, demo snapshot, container startup
+tests/                  Vitest suites
+docs/                   Architecture, setup, product tour, engineering notes
+```
 
 ## API reference
 
-All routes except auth, health and the demo login require a session; all data is scoped to the signed-in user.
+All routes except authentication, health, and the demo login require a session. All data is scoped to the signed-in user.
 
 | Area | Endpoints |
 | --- | --- |
@@ -364,99 +400,46 @@ All routes except auth, health and the demo login require a session; all data is
 | Spend Watch | `GET /api/spending` · `POST /api/spending/remember` |
 | Memory | `GET /api/memories` · `POST/PATCH /api/memories/:id/feedback` · `POST /api/memories/:id/write` · `POST /api/memories/restore` · `GET /api/memories/verify` · `GET /api/learning` · `GET/POST /api/community` |
 | Tatum | `GET/POST/PATCH /api/tatum/wallet` · `POST /api/tatum/transaction` · `GET /api/tatum/rates` |
-| Ops | `GET /api/health` (public) · `GET /api/integrations/health` |
+| Operations | `GET /api/health` (public) · `GET /api/integrations/health` |
 
-Errors are JSON `{ error, code, details? }` with conventional status codes (400 validation, 401, 403, 404, 409, 429, 503 for an unconfigured integration).
+Errors are JSON objects with the shape `{ error, code, details? }` and conventional status codes: `400` validation, `401` unauthenticated, `403` forbidden, `404` not found, `409` conflict, `429` rate limited, and `503` for an unconfigured integration.
 
 ## Data model
 
 | Model | Purpose |
 | --- | --- |
-| `User`, `Session`, `Consent`, `AuditEvent` | Identity, sessions (hashed tokens), opt-ins, audit trail |
-| `FinancialAccount`, `Transaction`, `ImportBatch` | Balances, activity, CSV import de-duplication |
-| `Commitment`, `SavingsGoal` | Bills (with recurrence) and goals |
+| `User`, `Session`, `Consent`, `AuditEvent` | Identity, hashed session tokens, opt-ins, audit trail |
+| `FinancialAccount`, `Transaction`, `ImportBatch` | Balances, activity, CSV import deduplication |
+| `Commitment`, `SavingsGoal` | Recurring bills and savings targets |
 | `PaymentRoute`, `RouteQuote`, `RouteObservation`, `CommunityRouteStatistic` | Routes, quotes, observed outcomes, opt-in aggregates |
-| `FinancialDecision`, `MoneyMovement`, `DecisionOutcome` | Snapshotted advice, what was done, how it turned out |
-| `MemoryRecord` | Lessons and journal entries: typed rule, write status, blob ID |
+| `FinancialDecision`, `MoneyMovement`, `DecisionOutcome` | Snapshotted advice, actions taken, observed results |
+| `MemoryRecord` | Lessons and journal entries with typed rules, write status, and blob IDs |
 | `MemoryEvidence` | Track-record verdicts per lesson and decision |
 | `MemoryUpdate` | Append-only lesson state changes mirrored to Walrus |
 
-Schema: [prisma/schema.prisma](prisma/schema.prisma).
+Full schema: [prisma/schema.prisma](prisma/schema.prisma).
 
-## Testing
+## Status and limitations
 
-```bash
-pnpm typecheck && pnpm lint && pnpm test && pnpm build
-```
-
-82 tests across 14 files, including:
-
-- **Money** — parsing, zero-decimal currencies, rounding, formatting.
-- **Cash flow and decisions** — buffers, income exclusion, caps, reserves, recurring bills, shortfalls.
-- **Routes and outcomes** — ranking, payout deductions, expired quotes, autopsy, lesson extraction.
-- **Replay** — cutoff clamping so later lessons never leak backwards.
-- **Spend Watch** — recurring detection (and not mistaking groceries for a subscription), memory-only alerts, newest rule wins, purchase checks.
-- **Track record** — verdicts, bounded confidence, review threshold.
-- **Walrus end to end** against the SDK's `MemWalMock` — confirmed writes and inventory, drafts never written, recall coverage, update flushing, journal recall, and a fresh-install restore that rebuilds lessons, state and track record.
-- **Portable text** — lesson, update and journal round trips, corrupted rules.
-- **Rates, CSV import, AI explanations** — BigInt conversion, sign conventions, the invented-number guard.
-- **Authorization and demo clock** — cross-user denial on a real database; demo dates roll forward without touching real accounts.
-
-## Project structure
-
-```text
-src/
-  app/                  Pages (landing, login, onboarding, privacy, app/*) and API routes
-  components/           UI (dashboard, plan, Spend Watch, memory, decision detail, settings…)
-  lib/                  Shared types, money primitives, client helpers
-  server/
-    engine/             Pure, tested engines: cashflow, decision, routes, outcomes, evidence, spending
-    services/           Memory (Walrus), Tatum, rates, decisions, spending, explain, demo, metrics…
-    api.ts · auth.ts    Route wrapper (validation, errors, origin checks) and sessions
-prisma/                 Schema and the labelled demo seed
-scripts/                Walrus backfill/verify, demo snapshot, container start
-tests/                  Vitest suites
-docs/                   Architecture, setup, demo script, blog, submission checklist
-```
-
-## Hackathon requirements
-
-| Requirement | How LANDED meets it |
-| --- | --- |
-| Walrus Memory integrated and writing on Mainnet | `rememberAndWait` / `recall` / `restore` / `listMemories`; three namespaces; writes confirmed only with a blob ID |
-| Tatum RPC for onchain data | Sui GraphQL gateway for balances, history and settlement evidence; Data API for rates |
-| ≥ 10 memories on Mainnet | 21 lessons + 5 journal entries + track-record updates ready via `walrus:backfill`; `walrus:verify` checks ledger and relayer inventory |
-| Blog post | [docs/blog.md](docs/blog.md) |
-| Working demo and public repo | [Live app](https://landed-production-3dc8.up.railway.app) with a self-refreshing demo account |
-| *Keeps scores, preferences, and reasoning* | Scores: track record · Preferences: typed rules · Reasoning: decision journal |
-| *Sharper every week* | Weekly learning curve; confidence that moves with evidence |
-| *Web2 welcome / blockchain invisible* | Dollars-first UI, no wallet required, chain data only as proof |
-| Consumer Finance track | Safe-to-move, Spend Watch with learned limits, savings goals, payment routes |
-
-Judging-criteria evidence is mapped in [docs/submission.md](docs/submission.md).
-
-## Current status and limitations
-
-- **Live on Mainnet.** The deployment writes and recalls through Walrus Memory on Mainnet (25 confirmed writes, verified against the relayer inventory) and reads Sui Mainnet through Tatum. A checkout without keys shows *local rehearsal* / *not configured* instead of simulating success.
-- **Tatum free plan.** It allows 3 requests per second; LANDED retries rate-limited calls, but heavy concurrent use needs a paid plan.
-- **No bank connections by design.** Balances are self-reported, CSV-imported or verified onchain; route quotes are user-entered.
+- **Live on Mainnet.** The production deployment writes and recalls through Walrus Memory on Mainnet and reads Sui Mainnet through Tatum. At the time of writing, **25 confirmed writes** are verified against relayer inventory: 20 lesson blobs, 5 journal entries, and 6 update blobs.
+- **Tatum free plan.** Three requests per second are available; LANDED retries rate-limited calls, but sustained concurrency requires a paid plan.
+- **No bank connections by design.** Balances are self-reported, CSV-imported, or verified onchain. Route quotes are user-entered.
 - **LANDED never moves money.** It advises and records outcomes.
-- **Single instance.** SQLite on a volume and in-memory rate limits suit one server; use PostgreSQL and a shared rate limiter to scale out.
-- **No email delivery yet**, so there is no password-reset email.
-- **FX** is shown for reference only, with a sourced Tatum rate.
+- **Single instance.** SQLite on a volume and in-memory rate limits suit one server. Horizontal scaling requires PostgreSQL and a shared rate limiter.
+- **No email delivery yet**, so password reset by email is not available.
+- **FX is reference-only**, using a sourced Tatum rate and never included in safe-to-move.
 
-## Roadmap
+## Documentation
 
-- Password reset and email verification.
-- PostgreSQL and horizontal scaling.
-- Shared budgets: household memory across two accounts.
-- Agent payments: settle a recommended transfer with x402 / MPP on Sui.
-- Bank-feed connectors behind the same honesty states.
+- [Product tour](docs/demo-script.md) — a two-to-three minute walkthrough.
+- [Architecture](docs/architecture.md) — decision pipeline, memory model, replay, and authorization.
+- [Setup and deployment](docs/setup.md) — local setup, credentials, Docker, Railway, and PostgreSQL.
+- [Engineering notes](docs/blog.md) — design decisions behind the learning loop.
 
 ---
 
 <div align="center">
 
-**LANDED** · Built for the Tatum × Walrus Total Recall hackathon · Walrus Memory keeps the learning, Tatum keeps it verifiable.
+**LANDED** — financial advice grounded in evidence.
 
 </div>

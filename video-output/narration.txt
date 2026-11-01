@@ -1,0 +1,116 @@
+LANDED demo — narration script (final)
+Voice: en-US-AvaNeural · rate −4% · loudnorm I=-16 TP=-1.5
+Wide:  LANDED-demo-wide-final.mp4     (1920×1080)
+Vertical: LANDED-demo-vertical-final.mp4 (1080×1920)
+Total: 2:55 · 11 slides · every number on screen is read from the live UI on the same day (Oct 31, 2026)
+
+──────────────────────────────────────────────────────────────────────────────
+01 · HOOK                                           0:00 (narration from 0:00)
+──────────────────────────────────────────────────────────────────────────────
+Your balance says five thousand twenty-four fifty. It says nothing about rent
+and internet due in days, the groceries this week, or the hundred thirty-four
+you promised to protect. A balance shows what you have. It never shows what is
+safe to use.
+
+On screen: cleared balance $5,024.50 vs safe to move $130.00.
+
+──────────────────────────────────────────────────────────────────────────────
+02 · THE PROBLEM                                    0:17 (slide on at 0:17)
+──────────────────────────────────────────────────────────────────────────────
+Most money apps stop there. They quote you, then forget what happened: a fee
+that doubled, a delivery that took a day, a salary late. And the same mistake
+repeats. LANDED replaces the number with an answer, and it learns from every
+outcome.
+
+On screen (memory ledger, confirmed lessons): "FastRemit charged $14.80 against
+a $0.99 quote" · "FastRemit delivered in 31 hours despite a 4-hour promise" ·
+"Salary has arrived late twice in the last four months, once after rent was
+due."
+
+──────────────────────────────────────────────────────────────────────────────
+03 · THE ANSWER                                     0:34 (slide on at 0:35)
+──────────────────────────────────────────────────────────────────────────────
+LANDED answers one question: what is safe to move right now? The next
+forty-five days are simulated in integer cents: every bill, every savings
+contribution, your spending pace, a buffer. Expected income stays out until it
+lands. Not five thousand. Not three hundred. One hundred thirty dollars.
+
+On screen: safe to move $130.00, after $1,680.00 protected / $983.78 near-term /
+$134.70 buffer.
+
+──────────────────────────────────────────────────────────────────────────────
+04 · PLAN A MOVE                                    0:55 (slide on at 0:55)
+──────────────────────────────────────────────────────────────────────────────
+She asks plainly: can I send three hundred to my sister today? LANDED simulates
+it against every obligation and every route.
+
+On screen: requested $300.00 → my sister · USD; four ranked routes.
+
+──────────────────────────────────────────────────────────────────────────────
+05 · THE WISER ANSWER                               1:04 (slide on at 1:04)
+──────────────────────────────────────────────────────────────────────────────
+The no-memory baseline says: send all three hundred today. With her confirmed
+lessons: one hundred fifty now, the rest after payday. Predicted buffer one
+fifty seventy-two. Shortfall risk eight percent. Confidence sixty-two.
+
+On screen: recommended $150.00 now + $150.00 after paycheck; baseline $300.00;
+buffer $150.72; risk 8%; confidence 62%.
+
+──────────────────────────────────────────────────────────────────────────────
+06 · WHY IT CHANGED                                 1:21 (slide on at 1:21)
+──────────────────────────────────────────────────────────────────────────────
+The counterfactual shows the identical snapshot with memory removed: three
+hundred today. Two lessons change the answer: cap the move at half of
+safe-to-move while rent is near, prefer the route that delivered last time.
+Every adjustment names its memory.
+
+On screen: decision autopsy, identical input snapshot, two lesson constraints.
+
+──────────────────────────────────────────────────────────────────────────────
+07 · YOUR RULES WORK                                1:38 (slide on at 1:38)
+──────────────────────────────────────────────────────────────────────────────
+Between decisions, her rules keep working. Dining is thirty-two over the one
+twenty limit she set. The streaming bundle charged twenty-one ninety-nine
+against an approved eighteen. Every alert names the memory behind it, and none
+exists without your approval.
+
+On screen: Dining $152.00 / $120.00 limit; Streaming $21.99 vs approved $18.00.
+
+──────────────────────────────────────────────────────────────────────────────
+08 · WALRUS MEMORY                                  1:55 (slide on at 1:55)
+──────────────────────────────────────────────────────────────────────────────
+Here is the memory. Confirmed lessons live on Walrus, Sui Mainnet; a write
+counts only when the relayer returns a blob ID. This ledger shows lesson, typed
+rule, blob, and the source decision. Restore from Walrus rebuilds it on a fresh
+device. The namespace follows the person.
+
+On screen: blob rNfT7QJ2Zfki98qI53lxO79UJSD53liw4W00wKzSh7E, typed rule JSON,
+restore flow.
+
+──────────────────────────────────────────────────────────────────────────────
+09 · TRACK RECORD                                   2:16 (slide on at 2:16)
+──────────────────────────────────────────────────────────────────────────────
+Outcomes grade the lessons that shaped advice. Held ones gain confidence.
+Failed ones lose influence and go to review. After a real miss, LANDED learned
+thirteen lessons; twenty now in force.
+
+On screen: memory stats — 25 confirmed writes, 75% objectives achieved, 60% of
+decisions influenced; 20 rules / 13 lessons after the week-of-Oct-17 miss.
+
+──────────────────────────────────────────────────────────────────────────────
+10 · VERIFIED, NOT CLAIMED                          2:31 (slide on at 2:31)
+──────────────────────────────────────────────────────────────────────────────
+Facts are verified, not claimed: Sui reads run through Tatum on Mainnet, rates
+come from its Data API, and digests are re-read server-side before anything is
+marked verified. Unconfigured means blocked, never fake.
+
+On screen: Sui Mainnet checkpoint 340,024,282; Tatum RPC + rate API reachable;
+unconfigured features show blocked.
+
+──────────────────────────────────────────────────────────────────────────────
+11 · CLOSE                                          2:47 → 2:55
+──────────────────────────────────────────────────────────────────────────────
+LANDED. Money that remembers.
+
+On screen: landed-production-3dc8.up.railway.app · demo data is synthetic ·
+integrations show blocked rather than fake success.

@@ -26,11 +26,11 @@ export interface DecisionResult {
   input: DecisionInputSnapshot;
 }
 
-function emptyAction(reason: string): DecisionAction {
+function emptyAction(reason: string, currency: string): DecisionAction {
   return {
     kind: "insufficient_data",
     amountMinor: 0,
-    currency: "USD",
+    currency,
     timing: "wait",
     headline: "I need one more detail",
     rationale: reason,
@@ -41,14 +41,16 @@ function emptyAction(reason: string): DecisionAction {
 
 function routePrediction(
   quote: { expectedReceivedMinor: number; sendAmountMinor: number; feeMinor: number; networkFeeMinor: number; estimatedDeliveryHours: number; routeId: string; routeName: string } | null,
-  requestedAmountMinor: number,
+  _requestedAmountMinor: number,
   recommendedAmountMinor: number,
 ) {
-  if (!quote) return { feeMinor: null, receivedMinor: null, deliveryHours: null, routeId: null, routeName: null };
-  const delta = Math.max(0, requestedAmountMinor - recommendedAmountMinor);
+  // A quote for a different send amount cannot establish the fee, payout or
+  // best route for this recommendation. In particular, subtracting a source
+  // currency difference from a destination currency payout is invalid.
+  if (!quote || quote.sendAmountMinor !== recommendedAmountMinor) return { feeMinor: null, receivedMinor: null, deliveryHours: null, routeId: null, routeName: null };
   return {
     feeMinor: quote.feeMinor + quote.networkFeeMinor,
-    receivedMinor: Math.max(0, quote.expectedReceivedMinor - delta),
+    receivedMinor: quote.expectedReceivedMinor,
     deliveryHours: quote.estimatedDeliveryHours,
     routeId: quote.routeId,
     routeName: quote.routeName,
@@ -65,6 +67,7 @@ function toCashFlow(input: DecisionInputSnapshot, memories: ValidatedMemory[]): 
       balanceMinor: a.balanceMinor,
       currency: a.currency,
       isLiquid: a.isLiquid,
+      includeInSafeToMove: a.includeInSafeToMove,
       verificationStatus: a.verificationStatus,
       balanceSource: a.balanceSource,
     })),
@@ -76,7 +79,7 @@ function toCashFlow(input: DecisionInputSnapshot, memories: ValidatedMemory[]): 
       dueDate: new Date(c.dueDate),
       priority: c.priority,
       recurrence: c.recurrence,
-      status: "upcoming",
+      status: c.status ?? "upcoming",
     })),
     savingsGoals: input.savingsGoals.map((g) => ({
       id: g.id,
@@ -127,7 +130,7 @@ function recommendFromCashflow(
   const type = input.decisionType;
 
   if (cf.missingInputs.some((m) => m.startsWith("No liquid"))) {
-    const action = emptyAction("There is no cleared liquid account in this currency. Add or verify an account before LANDED recommends a move.");
+    const action = emptyAction("There is no cleared liquid account in this currency. Add or verify an account before LANDED recommends a move.", input.currency);
     return {
       cashflow: cf,
       routeComparison,
@@ -164,12 +167,12 @@ function recommendFromCashflow(
 
   if (requested && safe < requested) {
     const nextIncome = income;
-    if (options.allowSplit && recommended > 0 && nextIncome) {
+    if (type === "send" && options.allowSplit && recommended > 0 && nextIncome) {
       const remainder = requested - recommended;
       const evalRemainder = evaluateTransfer(
         toCashFlow(input, memories),
-        remainder,
-        new Date(new Date(nextIncome.expectedDate).getTime() + 86_400_000),
+        requested,
+        new Date(input.asOf),
       );
       if (evalRemainder.bufferAfterMinor >= 0 && !evalRemainder.shortfall) {
         timing = "wait_for_income";
@@ -210,7 +213,7 @@ function recommendFromCashflow(
     recommended = contribution;
     if (requested && contribution < requested) {
       timing = "on_date";
-      timingDate = new Date(Date.now() + 7 * 86_400_000).toISOString();
+      timingDate = new Date(new Date(input.asOf).getTime() + 7 * 86_400_000).toISOString();
       adjustments.push({
         code: "SAVE_REDUCED",
         label: `Save ${formatMinor(contribution, input.currency)} now, not ${formatMinor(requested, input.currency)}`,
@@ -221,7 +224,7 @@ function recommendFromCashflow(
   }
 
   const chosenRoute = routeComparison.best
-    ? routePrediction(routeComparison.best.quote, requested ?? recommended, recommended)
+    ? routePrediction({ ...routeComparison.best.quote, expectedReceivedMinor: routeComparison.best.expectedReceivedMinor }, requested ?? recommended, recommended)
     : routePrediction(null, recommended, recommended);
   const evaluation = evaluateTransfer(toCashFlow(input, memories), recommended, new Date(input.asOf));
   const predicted = buildPrediction({
@@ -266,7 +269,7 @@ function recommendFromCashflow(
 
   const rationaleParts: string[] = [];
   if (requestedLabel && requested !== null && recommended < requested) {
-    rationaleParts.push(`${requestedLabel} would put a protected obligation at risk.`);
+    rationaleParts.push(`${requestedLabel} exceeds the current safe-to-move recommendation.`);
   }
   rationaleParts.push(
     `After protecting ${formatMinor(cf.essentialCommitmentsMinor, input.currency)} in scheduled commitments and a ${formatMinor(cf.effectiveSafetyBufferMinor, input.currency)} buffer, ${formatMinor(safe, input.currency)} is safe to move.`,
@@ -274,10 +277,12 @@ function recommendFromCashflow(
   if (split) {
     rationaleParts.push(`Send the remaining ${formatMinor(split.remainderMinor, input.currency)} after your ${income?.label ?? "next confirmed payment"}.`);
   }
-  if (routeComparison.best && routeComparison.best.adjustments.length > 0) {
+  if (chosenRoute.routeId && routeComparison.best && routeComparison.best.adjustments.length > 0) {
     rationaleParts.push(`${routeComparison.best.quote.routeName} ranks first after applying observed route outcomes.`);
-  } else if (routeComparison.best) {
+  } else if (chosenRoute.routeId && routeComparison.best) {
     rationaleParts.push(`${routeComparison.best.quote.routeName} ranks first on recipient amount, cost, speed, and evidence quality.`);
+  } else if (routeComparison.best) {
+    rationaleParts.push("The available route quotes are for a different amount. Get a new quote for this recommendation before comparing fees or recipient amounts.");
   }
   if (cf.missingInputs.length > 0) rationaleParts.push(`Note: ${cf.missingInputs[0]}`);
 
@@ -317,8 +322,11 @@ function recommendFromCashflow(
 }
 
 export function decide(input: DecisionInputSnapshot, memories: ValidatedMemory[]): DecisionResult {
-  const enriched = { ...input, memoryCutoff: input.memoryCutoff ?? new Date().toISOString() };
-  const withMemory = recommendFromCashflow(enriched, memories, { allowSplit: true });
+  const enriched = { ...input, memoryCutoff: input.memoryCutoff ?? input.asOf };
+  const eligible = memories.filter((m) => !m.excluded && !m.supersededBy &&
+    ["verified", "user_confirmed"].includes(m.verificationStatus) &&
+    new Date(m.createdAt).getTime() <= new Date(enriched.memoryCutoff).getTime());
+  const withMemory = recommendFromCashflow(enriched, eligible, { allowSplit: true });
   const baseline = recommendFromCashflow(enriched, [], { allowSplit: false });
 
   const routeAssumptions: Assumption[] = [];

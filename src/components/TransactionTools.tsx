@@ -13,7 +13,8 @@ const CATEGORIES = [
 ] as const;
 
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  const date = new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 /** Add one transaction or import a CSV. The data Spend Watch and the forecasts learn from. */
@@ -31,15 +32,17 @@ export function TransactionTools({ currency, accounts }: { currency: string; acc
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
+  const transactionCurrency = accounts.find((account) => account.id === accountId)?.currency ?? currency;
+
   async function addTransaction() {
     setBusy(true); setError(null); setNotice(null);
     try {
       await post("/api/transactions", {
-        amount, currency, direction, date, merchant: merchant.trim() || null,
+        amount, currency: transactionCurrency, direction, date, merchant: merchant.trim() || null,
         category: direction === "in" && category === "food" ? "income" : category,
         accountId: accountId || null,
       });
-      setNotice(`Added ${direction === "in" ? "income" : "spending"} of ${amount} ${currency}. Account balances are not changed automatically — update them in Settings when they move.`);
+      setNotice(`Added ${direction === "in" ? "income" : "spending"} of ${amount} ${transactionCurrency}. Update the account balance in Settings to keep your forecast current.`);
       setAmount(""); setMerchant("");
       router.refresh();
     } catch (err) {
@@ -73,8 +76,8 @@ export function TransactionTools({ currency, accounts }: { currency: string; acc
   return (
     <Card>
       <CardHeader
-        title="Add your money activity"
-        subtitle="Spend Watch, income forecasts and safe-to-move learn from these. No bank login: add a transaction or import your bank's CSV export."
+        title="Add transactions"
+        subtitle="Add transactions manually or import a CSV to improve spending insights and forecasts."
         right={
           <div className="flex gap-2">
             <Button size="sm" variant={mode === "add" ? "primary" : "outline"} onClick={() => setMode(mode === "add" ? null : "add")}><Plus className="h-3.5 w-3.5" /> Add</Button>
@@ -95,18 +98,18 @@ export function TransactionTools({ currency, accounts }: { currency: string; acc
           {mode === "add" ? (
             <div className="grid gap-3 sm:grid-cols-5">
               <Field label="Type">
-                <select className={selectClass} value={direction} onChange={(e) => { const next = e.target.value as "in" | "out"; setDirection(next); if (next === "in") setCategory("income"); }}>
+                <select className={selectClass} value={direction} onChange={(e) => { const next = e.target.value as "in" | "out"; setDirection(next); setCategory(next === "in" ? "income" : "food"); }}>
                   <option value="out">Spending</option>
                   <option value="in">Income</option>
                 </select>
               </Field>
-              <Field label={`Amount (${currency})`}>
+              <Field label={`Amount (${transactionCurrency})`}>
                 <input className={inputClass} inputMode="decimal" placeholder="24.50" value={amount} onChange={(e) => setAmount(e.target.value)} />
               </Field>
               <Field label="Date">
                 <input className={inputClass} type="date" max={today()} value={date} onChange={(e) => setDate(e.target.value)} />
               </Field>
-              <Field label="Where">
+              <Field label="Merchant or source">
                 <input className={inputClass} placeholder="Corner Grocer" maxLength={120} value={merchant} onChange={(e) => setMerchant(e.target.value)} />
               </Field>
               <Field label="Category">
@@ -120,10 +123,10 @@ export function TransactionTools({ currency, accounts }: { currency: string; acc
             </div>
           ) : (
             <div className="space-y-3">
-              <input ref={fileRef} type="file" accept=".csv,text/csv" className="block w-full text-[12px] text-muted file:mr-3 file:rounded-full file:border-0 file:bg-black/[0.05] file:px-3 file:py-1.5 file:text-cream" />
+              <input aria-label="Transaction CSV file" ref={fileRef} type="file" accept=".csv,text/csv" className="block w-full text-[12px] text-muted file:mr-3 file:rounded-full file:border-0 file:bg-black/[0.05] file:px-3 file:py-1.5 file:text-cream" />
               <p className="text-[11px] leading-relaxed text-muted">
                 Columns: <span className="font-mono text-cream/80">date, amount, description</span>, optionally <span className="font-mono text-cream/80">merchant, category, direction, currency</span>.
-                Negative amounts are spending. Categories are inferred when missing. The same file or row is never imported twice.
+                Negative amounts are spending. Categories are inferred when missing. Matching duplicate rows are skipped. Account balances are not updated by an import.
               </p>
               <Button onClick={importCsv} loading={busy}><FileUp className="h-3.5 w-3.5" /> Import</Button>
             </div>

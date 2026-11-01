@@ -2,23 +2,23 @@ import { after } from "next/server";
 import { api, ApiError, parseBody } from "@/server/api";
 import { requireApiUser } from "@/server/auth";
 import { decisionRequestSchema } from "@/lib/types";
-import { parseAmountToMinor } from "@/lib/money";
+import { currencySchema, dateSchema, parseLimit, parseApiAmount } from "@/server/validation";
 import { generateDecision, journalDecision, listDecisions } from "@/server/services/decisions";
 
 export const GET = api(async (req) => {
   const user = await requireApiUser();
   const { searchParams } = new URL(req.url);
-  const limit = Math.min(Number(searchParams.get("limit") ?? 50), 100);
+  const limit = parseLimit(searchParams.get("limit"), 50, 100);
   return { decisions: await listDecisions(user.id, limit) };
 });
 
 export const POST = api(async (req) => {
   const user = await requireApiUser();
-  const body = await parseBody(req, decisionRequestSchema);
+  const body = await parseBody(req, decisionRequestSchema.extend({ currency: currencySchema.default("USD"), destinationCurrency: currencySchema.default("USD"), date: dateSchema.optional() }));
   let amountMinor: number | null = null;
   if (body.amount !== undefined && body.amount !== "") {
     try {
-      amountMinor = parseAmountToMinor(body.amount, body.currency);
+      amountMinor = parseApiAmount(body.amount, body.currency);
     } catch (error) {
       throw new ApiError(400, "INVALID_AMOUNT", error instanceof Error ? error.message : "Invalid amount");
     }

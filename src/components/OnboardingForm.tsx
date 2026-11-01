@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Plus, Trash2 } from "lucide-react";
+import { parseAmountToMinor } from "@/lib/money";
 import { post, errorMessage } from "@/lib/client";
 import { Button, ErrorNote, Field, inputClass, selectClass } from "@/components/ui";
 import { LogoMark } from "@/components/Logo";
@@ -16,7 +17,7 @@ type Obligation = {
 function inDays(days: number) {
   const date = new Date();
   date.setDate(date.getDate() + days);
-  return date.toISOString().slice(0, 10);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 export function OnboardingForm({ defaultName }: { defaultName: string }) {
@@ -32,7 +33,7 @@ export function OnboardingForm({ defaultName }: { defaultName: string }) {
   const [incomeDate, setIncomeDate] = useState(inDays(-10));
   const [incomeCadence, setIncomeCadence] = useState<"weekly" | "biweekly" | "monthly">("monthly");
   const [obligations, setObligations] = useState<Obligation[]>([
-    { name: "Rent", amount: "", dueDate: inDays(8), priority: "essential", recurrence: "monthly" },
+    { name: "", amount: "", dueDate: inDays(8), priority: "essential", recurrence: "monthly" },
   ]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,15 +42,35 @@ export function OnboardingForm({ defaultName }: { defaultName: string }) {
     setObligations((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
   }
 
+  function nextStep() {
+    setError(null);
+    try {
+      if (!objective.trim()) throw new Error("Enter your main financial objective.");
+      if (parseAmountToMinor(startingBalance || "0", currency) < 0 || parseAmountToMinor(safetyBuffer || "0", currency) < 0) {
+        throw new Error("Your starting balance and safety buffer must be zero or greater.");
+      }
+      if (incomeAmount.trim() && (parseAmountToMinor(incomeAmount, currency) <= 0 || !incomeDate || incomeDate > inDays(0))) {
+        throw new Error("Enter a positive income amount and the date it was received, no later than today.");
+      }
+      setStep(2);
+    } catch (err) { setError(errorMessage(err)); }
+  }
+
   async function submit() {
     setLoading(true);
     setError(null);
     try {
+      const bills = obligations.filter((row) => row.name.trim() || row.amount.trim());
+      for (const bill of bills) {
+        if (!bill.name.trim() || !bill.amount.trim() || !bill.dueDate || parseAmountToMinor(bill.amount, currency) <= 0) {
+          throw new Error("Complete the name, positive amount, and due date for each bill, or remove the row.");
+        }
+      }
       await post("/api/onboarding", {
         currency,
         objective,
         startingBalance: startingBalance || "0",
-        obligations: obligations.filter((o) => o.name.trim() && o.amount.trim()),
+        obligations: bills,
         safetyBuffer: safetyBuffer || "0",
         riskPosture,
         income: incomeAmount.trim()
@@ -81,11 +102,10 @@ export function OnboardingForm({ defaultName }: { defaultName: string }) {
 
       {step === 1 ? (
         <div className="animate-rise mt-10">
-          <p className="text-[11px] uppercase tracking-[0.18em] text-lime">The picture</p>
-          <h1 className="mt-3 font-display text-[40px] leading-[1.05] text-cream sm:text-[48px]">What are you protecting?</h1>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-lime">Your financial profile</p>
+          <h1 className="mt-3 font-display text-[40px] leading-[1.05] text-cream sm:text-[48px]">Set your priorities</h1>
           <p className="mt-3 max-w-lg text-[13px] leading-6 text-muted">
-            LANDED uses this to choose what counts as an essential obligation. You can change everything later — and
-            every number is self-reported until you connect a verified source.
+            Add your balance, income, and safety buffer to build your first forecast. You choose which bills are essential in the next step. You can update these details later.
           </p>
 
           <div className="mt-8 space-y-5">
@@ -98,10 +118,10 @@ export function OnboardingForm({ defaultName }: { defaultName: string }) {
                   {["USD", "EUR", "GBP", "PHP", "MXN", "INR", "NGN", "KES"].map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
               </Field>
-              <Field label="Liquid balance">
+              <Field label={`Available balance (${currency})`}>
                 <input className={inputClass} inputMode="decimal" placeholder="0.00" value={startingBalance} onChange={(e) => setStartingBalance(e.target.value)} />
               </Field>
-              <Field label="Safety buffer">
+              <Field label={`Safety buffer (${currency})`}>
                 <input className={inputClass} inputMode="decimal" placeholder="100.00" value={safetyBuffer} onChange={(e) => setSafetyBuffer(e.target.value)} />
               </Field>
             </div>
@@ -130,25 +150,27 @@ export function OnboardingForm({ defaultName }: { defaultName: string }) {
                 </Field>
               </div>
             </div>
-            <Field label="Risk posture" hint="Cautious keeps a larger reserve. Flexible accepts more timing risk.">
+            <Field label="Planning preference" hint="Cautious keeps a larger reserve. Flexible accepts more timing risk.">
               <select className={selectClass} value={riskPosture} onChange={(e) => setRiskPosture(e.target.value as typeof riskPosture)}>
-                <option value="cautious">Cautious — protect first</option>
-                <option value="balanced">Balanced — cover bills, keep room</option>
-                <option value="flexible">Flexible — optimize for the goal</option>
+                <option value="cautious">Cautious — prioritize reserves</option>
+                <option value="balanced">Balanced — cover bills and goals</option>
+                <option value="flexible">Flexible — prioritize your goal</option>
               </select>
             </Field>
           </div>
 
+          {error ? <ErrorNote className="mt-6">{error}</ErrorNote> : null}
+
           <div className="mt-8 flex justify-end">
-            <Button size="lg" onClick={() => setStep(2)} disabled={!objective.trim()}>
+            <Button size="lg" onClick={nextStep} disabled={!objective.trim()}>
               Next <ArrowRight className="h-4 w-4" />
             </Button>
           </div>
         </div>
       ) : (
         <div className="animate-rise mt-10">
-          <p className="text-[11px] uppercase tracking-[0.18em] text-lime">The obligations</p>
-          <h1 className="mt-3 font-display text-[40px] leading-[1.05] text-cream sm:text-[48px]">What lands before you do?</h1>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-lime">Your upcoming bills</p>
+          <h1 className="mt-3 font-display text-[40px] leading-[1.05] text-cream sm:text-[48px]">Add bills to protect</h1>
           <p className="mt-3 max-w-lg text-[13px] leading-6 text-muted">
             Add bills that must be covered. Only essential and important obligations reduce safe-to-move. You can add
             more, import a CSV, or connect a Sui wallet later.
@@ -157,23 +179,23 @@ export function OnboardingForm({ defaultName }: { defaultName: string }) {
           <div className="mt-8 space-y-3">
             {obligations.map((row, index) => (
               <div key={index} className="grid gap-2 rounded-xl border border-black/[0.08] bg-black/[0.02] p-3 sm:grid-cols-[1.3fr_0.9fr_1fr_0.9fr_0.9fr_auto] sm:items-end">
-                <Field label={index === 0 ? "Name" : " "}>
+                <Field label="Bill name">
                   <input className={inputClass} value={row.name} onChange={(e) => updateObligation(index, { name: e.target.value })} placeholder="Rent" />
                 </Field>
-                <Field label={index === 0 ? "Amount" : " "}>
+                <Field label={`Amount (${currency})`}>
                   <input className={inputClass} inputMode="decimal" value={row.amount} onChange={(e) => updateObligation(index, { amount: e.target.value })} placeholder="1450.00" />
                 </Field>
-                <Field label={index === 0 ? "Due" : " "}>
+                <Field label="Due date">
                   <input className={inputClass} type="date" value={row.dueDate} onChange={(e) => updateObligation(index, { dueDate: e.target.value })} />
                 </Field>
-                <Field label={index === 0 ? "Priority" : " "}>
+                <Field label="Priority">
                   <select className={selectClass} value={row.priority} onChange={(e) => updateObligation(index, { priority: e.target.value as Obligation["priority"] })}>
                     <option value="essential">Essential</option>
                     <option value="important">Important</option>
                     <option value="discretionary">Optional</option>
                   </select>
                 </Field>
-                <Field label={index === 0 ? "Repeats" : " "}>
+                <Field label="Repeats">
                   <select className={selectClass} value={row.recurrence} onChange={(e) => updateObligation(index, { recurrence: e.target.value as Obligation["recurrence"] })}>
                     <option value="monthly">Monthly</option>
                     <option value="weekly">Weekly</option>
@@ -181,7 +203,7 @@ export function OnboardingForm({ defaultName }: { defaultName: string }) {
                     <option value="none">Once</option>
                   </select>
                 </Field>
-                <Button variant="ghost" size="sm" className="mb-0.5" onClick={() => setObligations((rows) => rows.filter((_, i) => i !== index))} aria-label="Remove obligation">
+                <Button variant="ghost" size="sm" className="mb-0.5" onClick={() => setObligations((rows) => rows.filter((_, i) => i !== index))} aria-label={`Remove ${row.name || `bill ${index + 1}`}`}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
@@ -191,16 +213,16 @@ export function OnboardingForm({ defaultName }: { defaultName: string }) {
               size="sm"
               onClick={() => setObligations((rows) => [...rows, { name: "", amount: "", dueDate: inDays(15), priority: "important", recurrence: "monthly" }])}
             >
-              <Plus className="h-3.5 w-3.5" /> Add another obligation
+              <Plus className="h-3.5 w-3.5" /> Add another bill
             </Button>
           </div>
 
           {error ? <ErrorNote className="mt-6">{error}</ErrorNote> : null}
 
           <div className="mt-8 flex items-center justify-between">
-            <Button variant="ghost" onClick={() => setStep(1)}>Back</Button>
+            <Button variant="ghost" disabled={loading} onClick={() => { setError(null); setStep(1); }}>Back</Button>
             <Button size="lg" onClick={submit} loading={loading}>
-              Enter LANDED <ArrowRight className="h-4 w-4" />
+              Finish setup <ArrowRight className="h-4 w-4" />
             </Button>
           </div>
         </div>

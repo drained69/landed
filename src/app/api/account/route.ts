@@ -27,13 +27,16 @@ export const DELETE = api(async (req) => {
   }
   const confirmedOnWalrus = await prisma.memoryRecord.count({ where: { userId: user.id, walrusBlobId: { not: null } } });
   // Cascades remove accounts, transactions, decisions, outcomes, memories, sessions and consents.
-  await prisma.user.delete({ where: { id: user.id } });
+  await prisma.$transaction([
+    prisma.auditEvent.deleteMany({ where: { userId: user.id } }),
+    prisma.user.delete({ where: { id: user.id } }),
+  ]);
   await destroySession();
   return {
     ok: true,
     walrusBlobs: confirmedOnWalrus,
     note: confirmedOnWalrus > 0
-      ? `Your account and all of its records are deleted. ${confirmedOnWalrus} memory blob(s) already written to Walrus stay encrypted on Walrus; they are not readable without this deployment's delegate key and are no longer linked to any account here.`
+      ? `Your account and all of its records are deleted. ${confirmedOnWalrus} memory blob(s) already written to Walrus stay encrypted on Walrus; they are not readable without this deployment's delegate key and are not removed by account deletion.`
       : "Your account and all of its records are deleted.",
   };
 });
